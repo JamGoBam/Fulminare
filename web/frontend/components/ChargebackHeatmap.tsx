@@ -12,8 +12,9 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table"
+import { API_BASE } from "@/lib/api"
 
-const API_URL = "http://localhost:8000/api/chargebacks/summary"
+const API_URL = `${API_BASE}/api/chargebacks/summary`
 
 const DCS = ["DC_EAST", "DC_WEST", "DC_CENTRAL"] as const
 

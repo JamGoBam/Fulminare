@@ -14,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { API_BASE } from "@/lib/api"
 
 const DCS = ["DC_EAST", "DC_WEST", "DC_CENTRAL"] as const
 
@@ -73,13 +74,13 @@ export default function SkuPage({ params }: { params: Promise<{ sku: string }> }
   const { data: allRows, isLoading: loadingImbalance } = useQuery<ImbalanceRow[]>({
     queryKey: ["imbalance"],
     queryFn: () =>
-      axios.get<ImbalanceRow[]>("http://localhost:8000/api/inventory/imbalance?top=100").then((r) => r.data),
+      axios.get<ImbalanceRow[]>(`${API_BASE}/api/inventory/imbalance?top=100`).then((r) => r.data),
   })
 
   const { data: allTransfers, isLoading: loadingTransfers } = useQuery<TransferRow[]>({
     queryKey: ["transfers"],
     queryFn: () =>
-      axios.get<TransferRow[]>("http://localhost:8000/api/recommendations/transfers").then((r) => r.data),
+      axios.get<TransferRow[]>(`${API_BASE}/api/recommendations/transfers`).then((r) => r.data),
   })
 
   const skuRows = allRows?.filter((r) => r.sku === sku) ?? []

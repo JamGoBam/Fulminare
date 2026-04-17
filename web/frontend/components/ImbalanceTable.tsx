@@ -12,8 +12,9 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { API_BASE } from "@/lib/api"
 
-const API_URL = "http://localhost:8000/api/inventory/imbalance?top=20"
+const API_URL = `${API_BASE}/api/inventory/imbalance?top=20`
 
 interface ImbalanceRow {
   sku: string

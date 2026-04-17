@@ -2,8 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
+import { API_BASE } from "@/lib/api"
 
-const API_URL = "http://localhost:8000/api/summary"
+const API_URL = `${API_BASE}/api/summary`
 
 interface Summary {
   total_skus: number

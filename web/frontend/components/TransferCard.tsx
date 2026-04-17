@@ -11,8 +11,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
+import { API_BASE } from "@/lib/api"
 
-const API_URL = "http://localhost:8000/api/recommendations/transfers"
+const API_URL = `${API_BASE}/api/recommendations/transfers`
 
 interface TransferRow {
   sku: string

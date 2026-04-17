@@ -5,8 +5,7 @@ import axios from "axios"
 import { ChargebackHeatmap } from "@/components/ChargebackHeatmap"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
-
-const API_BASE = "http://localhost:8000"
+import { API_BASE } from "@/lib/api"
 
 interface ChargebackRecord {
   cause_code: string
