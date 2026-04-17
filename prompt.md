@@ -1,61 +1,65 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Build the chargeback heatmap page (`/chargebacks`) + transfer-vs-wait recommendation card, so the demo covers the Business and Design judging criteria.
+Build the transfer-vs-wait recommendation card and the SKU drill-down page, then wire up the "Save $X annually" banner on the dashboard home.
 
 ## LAST SESSION SUMMARY
-- Added SKU-004 (Reishi Mushroom Capsules) to seed CSVs: DC_EAST critical (DoS=10, demand=5/day), DC_WEST warning (DoS=20, demand=0.5/day), DC_CENTRAL ok (DoS=null, no demand)
-- Added critical alert banner in `ImbalanceTable.tsx`: red card above table, counts critical SKU-DC pairs, hidden when 0
-- Verified in browser: "⚠ 1 SKU-DC pair at critical inventory levels", Critical/Warning/OK badges all fire; 18/18 tests still green
-- Commit: `[DATA+FRONTEND] seed: add SKU-004 critical/warning rows; dashboard: alert banner` (hash: TBD)
+- Implemented `analytics/chargeback.py` (`chargeback_summary`): groups by cause×channel×dc, TPR filtered out
+- Implemented `GET /api/chargebacks/summary` and mounted in FastAPI; `GET /api/inventory/imbalance` still working
+- Built `/chargebacks` page + `ChargebackHeatmap` component: pivot table cause×DC, empty cells for zero, totals row, `← Dashboard` back nav; verified in browser with real data
+- Commit: `[LOGIC+FRONTEND] chargebacks: heatmap endpoint + page` (hash: TBD)
 
 ## NEXT TASK
-Implement the chargeback analytics page + backend endpoint.
+Implement the transfer recommendation engine + API endpoint, then surface it as a card on the dashboard.
 
-**Backend — `analytics/chargeback.py` + `web/api/routes/chargebacks.py`:**
+**Backend — `analytics/transfer.py` + `web/api/routes/recommendations.py`:**
 
-1. `chargeback_summary(chargebacks_df) -> pd.DataFrame`
-   - Filter out `TPR` cause code (CLAUDE.md locked rule)
-   - Group by `cause_code × channel × dc`, sum `amount`
-   - Output columns: `cause_code`, `channel`, `dc`, `total_amount`, `count`
+1. `transfer_recommendations(inventory_df, sales_df, skus_df, freight_df) -> pd.DataFrame`
+   - For each SKU, find DCs with critical/warning DoS (< 30) AND another DC with surplus (DoS > 90)
+   - For each such pair, compute:
+     - `qty_to_transfer`: bring dest DC to 30-day DoS — `max(0, (30 * rate_dest) - available_dest)`, rounded up to nearest case
+     - `transfer_cost`: use `analytics.metrics.transfer_cost` (units_per_case from skus_df, freight from freight_df)
+     - `chargeback_risk_avoided`: estimated as `(30 - dos_dest) * rate_dest * 15.0` (flat $15/unit penalty proxy for demo — no real chargeback model yet)
+     - `net_saving`: `chargeback_risk_avoided - transfer_cost`
+   - Output columns: `sku`, `product_name`, `origin_dc`, `dest_dc`, `dos_origin`, `dos_dest`, `qty_to_transfer`, `transfer_cost`, `chargeback_risk_avoided`, `net_saving`
+   - Only include rows where `net_saving > 0` and `qty_to_transfer > 0`
+   - Sort by `net_saving` descending
 
-2. `GET /api/chargebacks/summary` — returns JSON list from `chargeback_summary`
+2. `GET /api/recommendations/transfers` — returns JSON list from `transfer_recommendations`
    - Mount router in `web/api/main.py` under `/api`
 
-**Frontend — `web/frontend/app/chargebacks/page.tsx` + `web/frontend/components/ChargebackHeatmap.tsx`:**
+**Frontend — `web/frontend/components/TransferCard.tsx` + update `app/page.tsx`:**
 
-- Route: `http://localhost:3000/chargebacks`
-- Page header: "Chargeback Analysis" + today's date
-- `<ChargebackHeatmap>` component:
-  - Fetch from `GET /api/chargebacks/summary` via TanStack Query
-  - Render a simple grouped table: rows = cause codes, columns = DCs (DC_EAST / DC_WEST / DC_CENTRAL)
-  - Each cell: total `$amount` formatted as `$X,XXX` (no decimals), grey/empty for zero
-  - Below table: totals row
-  - Loading: skeleton; Error: red error message
-- Nav link from home page (`app/page.tsx`): add "Chargeback Analysis →" link in header
+- `<TransferCard>` fetches `GET /api/recommendations/transfers`
+- Renders a Card below the imbalance table on the home page
+- Card title: "Transfer Recommendations"
+- For each recommendation row show: SKU | Product | Origin DC → Dest DC | Qty | Est. Saving ($)
+- Highlight `net_saving` in green (`text-green-600`)
+- Empty state: "No transfers recommended — inventory is balanced."
 
 **Acceptance criteria:**
-- `uvicorn web.api.main:app --port 8000` → `GET /api/chargebacks/summary` returns JSON with `cause_code`, `channel`, `dc`, `total_amount`, `count`
-- `http://localhost:3000/chargebacks` renders the heatmap table with real data
-- TPR rows are absent from results
+- `GET /api/recommendations/transfers` returns JSON (may be empty array if no profitable transfers)
+- With current seed data (SKU-004 DC_EAST critical, DC_CENTRAL surplus), at least 1 recommendation appears
+- Card renders on home page with green net saving amount
 - `pnpm --dir web/frontend dev` starts clean (no TS errors)
+- `pytest tests/test_imbalance.py -q` still 18/18 green
 
 ## FILES IN PLAY
-- `analytics/chargeback.py` (implement: chargeback_summary)
-- `web/api/routes/chargebacks.py` (implement: GET /api/chargebacks/summary)
-- `web/api/main.py` (mount chargebacks router)
-- `web/frontend/app/chargebacks/page.tsx` (new page)
-- `web/frontend/components/ChargebackHeatmap.tsx` (new component)
-- `web/frontend/app/page.tsx` (add nav link)
+- `analytics/transfer.py` (implement: transfer_recommendations)
+- `web/api/routes/recommendations.py` (implement: GET /api/recommendations/transfers)
+- `web/api/main.py` (mount recommendations router)
+- `web/frontend/components/TransferCard.tsx` (new component)
+- `web/frontend/app/page.tsx` (add TransferCard below imbalance table)
 
 ## LOCKED / DO NOT TOUCH
-- `analytics/metrics.py`, `analytics/forecast.py`, `analytics/imbalance.py` — locked
-- `web/api/routes/inventory.py` — working; do not touch
+- `analytics/metrics.py`, `analytics/forecast.py`, `analytics/imbalance.py`, `analytics/chargeback.py` — locked
+- `web/api/routes/inventory.py`, `web/api/routes/chargebacks.py` — locked
+- `web/frontend/app/chargebacks/**`, `web/frontend/components/ChargebackHeatmap.tsx` — locked
 - `tests/test_imbalance.py` — must stay green
-- `data/seed/**` — seed data complete; do not touch
+- `data/seed/**` — locked
 
 ## BLOCKERS
-- Real POP CSVs still not received. No blocker — seed chargebacks.csv has 15 rows sufficient for demo.
+- Real freight rates not in seed data. Use `freight.csv` (origin/destination/cost_per_pallet). If a pair is missing, default cost_per_pallet = 300.0.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
