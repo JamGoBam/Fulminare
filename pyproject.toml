@@ -1,0 +1,39 @@
+[project]
+name = "pop-inventory"
+version = "0.1.0"
+description = "Prince of Peace 3-DC inventory imbalance and chargeback detection (HTC 2026)"
+requires-python = ">=3.11"
+dependencies = [
+    "pandas>=2.2",
+    "duckdb>=1.1",
+    "pydantic>=2.8",
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "pyarrow>=18.0",
+    "openpyxl>=3.1",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3",
+    "ruff>=0.8",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["data*", "analytics*", "web*"]
+exclude = ["tests*", "demo*", "shared*", "web.frontend*"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]

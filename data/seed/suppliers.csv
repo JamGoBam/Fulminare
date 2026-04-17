@@ -1,0 +1,5 @@
+supplier_id,country,moq,lead_time_days,payment_terms,port
+SUP-A,China,500,60,Net 30,LA
+SUP-B,Taiwan,400,45,Net 30,NY
+SUP-C,USA,200,14,Net 15,LA
+SUP-D,China,1000,75,Net 45,LA

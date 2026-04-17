@@ -1,0 +1,7 @@
+date,sku,qty,origin_dc,dest_dc,freight_cost,reason
+2025-10-01,SKU-001,200,EAST,WEST,840.00,rebalance
+2025-10-15,SKU-002,150,CENTRAL,EAST,630.00,rebalance
+2025-11-01,SKU-001,100,EAST,CENTRAL,1200.00,urgent_order
+2025-11-10,SKU-003,80,WEST,CENTRAL,336.00,rebalance
+2025-12-01,SKU-002,120,WEST,EAST,504.00,rebalance
+2025-12-10,SKU-001,50,EAST,WEST,210.00,urgent_order
