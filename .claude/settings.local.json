@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Bash(bash -n scripts/handoff.sh)",
-      "mcp__Claude_Preview__preview_start"
+      "mcp__Claude_Preview__preview_start",
+      "Bash(bash scripts/handoff.sh \"[META] handoff: add roadmap.md \\(chatbot + transfer-vs-wait\\); refresh CLAUDE/prompt for Phase 0\")"
     ]
   }
 }
