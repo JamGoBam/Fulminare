@@ -1,6 +1,7 @@
 import { ImbalanceTable } from "@/components/ImbalanceTable"
 import { TransferCard } from "@/components/TransferCard"
 import { SavingsBanner } from "@/components/SavingsBanner"
+import { StatsBar } from "@/components/StatsBar"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 
@@ -28,6 +29,7 @@ export default function DashboardPage() {
         </nav>
       </header>
 
+      <StatsBar />
       <SavingsBanner />
 
       <Card>

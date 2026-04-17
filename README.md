@@ -4,13 +4,12 @@ Hackathon project for Hack the Coast 2026, Prompt 3: Prince of Peace Inventory &
 
 **Read [`CLAUDE.md`](./CLAUDE.md) first.** Then [`prompt.md`](./prompt.md). Everything else follows from those two.
 
-## Quick start
+## Quick Start
 
 ```bash
-uv pip install -e .
-python -m data.ingest
-uvicorn web.api.main:app --reload --port 8000
-pnpm --dir web/frontend dev
+bash scripts/start.sh          # boots API (:8000) + frontend (:3000)
+open http://localhost:3000     # dashboard
+pytest -q                      # 18 tests
 ```
 
 ## Status

@@ -1,6 +1,17 @@
+"use client"
+
+import { useQuery } from "@tanstack/react-query"
+import axios from "axios"
 import { ChargebackHeatmap } from "@/components/ChargebackHeatmap"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
+
+const API_BASE = "http://localhost:8000"
+
+interface ChargebackSummary {
+  total_amount: number
+  incident_count: number
+}
 
 export default function ChargebacksPage() {
   const today = new Date().toLocaleDateString("en-US", {
@@ -9,6 +20,15 @@ export default function ChargebacksPage() {
     month: "long",
     day: "numeric",
   })
+
+  const { data: summary } = useQuery<ChargebackSummary>({
+    queryKey: ["chargebacks-summary"],
+    queryFn: () =>
+      axios.get<ChargebackSummary>(`${API_BASE}/api/chargebacks/summary`).then((r) => r.data),
+    refetchInterval: 60_000,
+  })
+
+  const fmt = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`
 
   return (
     <div className="flex flex-col flex-1 px-4 py-8 max-w-7xl mx-auto w-full gap-6">
@@ -30,6 +50,14 @@ export default function ChargebacksPage() {
           <ChargebackHeatmap />
         </CardContent>
       </Card>
+
+      {summary && (
+        <p className="text-sm text-muted-foreground">
+          Total chargeback exposure (excl. TPR):{" "}
+          <strong className="text-foreground">{fmt(summary.total_amount ?? 0)}</strong> across{" "}
+          <strong className="text-foreground">{summary.incident_count ?? 0} incidents</strong>
+        </p>
+      )}
     </div>
   )
 }

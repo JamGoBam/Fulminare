@@ -1,66 +1,59 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Final demo polish: "Save $X" banner on the chargeback page, README quick-start, and rehearsal dry-run verification.
+Final demo polish — rehearsal dry-run verification.
 
 ## LAST SESSION SUMMARY
-- Wrote `scripts/start.sh`: auto-ingest if parquets missing, boot API + frontend, wait for healthz, print ready URL; executable
-- Built `/sku/[sku]` drill-down page: 3 DoS stat cards (DC_EAST=10/Critical, DC_WEST=20/Warning, DC_CENTRAL=—/OK) + transfer table with green $900 net saving; fully verified in browser
-- Added `<Link href={/sku/${sku}}>` on SKU cell in ImbalanceTable — clicks navigate to drill-down
-- Commit: `[FRONTEND] cold-start script, SKU drill-down page, table SKU links` (hash: TBD)
+- Created `web/frontend/components/StatsBar.tsx`: live 4-stat bar (SKUs tracked | Critical | Warning | est. savings/yr) rendered between header and savings banner on home page; uses same `["summary"]` query key as SavingsBanner so TanStack deduplicates the request
+- Added chargeback exposure callout to `chargebacks/page.tsx`: converted to `"use client"`, fetches `/api/chargebacks/summary`, renders "Total chargeback exposure (excl. TPR): $X across N incidents" below heatmap card; assumes fields `total_amount` + `incident_count` — **verify these match the actual API response** on first boot
+- Updated `README.md`: replaced old `## Quick start` block with new `## Quick Start` using `scripts/start.sh`
+- Commit: `[FRONTEND] polish: stats bar, chargeback exposure, README quick-start`
 
 ## NEXT TASK
-Final polish pass before rehearsal.
+Boot the app, verify all acceptance criteria, and walk the rehearsal script.
 
-**1 — Summary stat bar on home page (`web/frontend/app/page.tsx`):**
-Fetch `/api/summary` (already exists). Add a horizontal stat bar between the header and the savings banner:
+**1 — Runtime verification (Windows terminal, not Git Bash):**
+```bash
+bash scripts/start.sh
 ```
-4 SKUs tracked   |   1 Critical   |   1 Warning   |   $10,800 est. savings / year
-```
-Use `<SavingsBanner>` data — just add a top stat row using the same `useQuery(["summary"])`. Put it in `SavingsBanner.tsx` (already fetches this data) or a new `StatsBar.tsx` — whichever is cleaner.
+Check each of these:
+- Home page: stat bar shows "N SKUs tracked | N Critical | N Warning | $X est. savings / year"
+- Home page: savings banner appears below stat bar
+- Chargebacks page: exposure line appears below heatmap card
+- Click a SKU in the imbalance table → `/sku/[sku]` page loads correctly
+- `pytest -q` passes 18/18
 
-**2 — Chargebacks page: total exposure callout (`web/frontend/app/chargebacks/page.tsx`):**
-Below the heatmap card, add a plain text line:
-`"Total chargeback exposure (excl. TPR): $X,XXX across N incidents"`
-Compute from the `/api/chargebacks/summary` response on the client.
+**2 — Fix chargebacks summary field names if needed:**
+Open `web/api/` to find the actual response shape of `/api/chargebacks/summary`. If the fields differ from `total_amount` / `incident_count`, update `web/frontend/app/chargebacks/page.tsx` (`ChargebackSummary` interface + usages on lines 12–13 and 57–58).
 
-**3 — `README.md` quick-start section:**
-Append a `## Quick Start` section to the existing `README.md`:
-```
-## Quick Start
-bash scripts/start.sh          # boots API (:8000) + frontend (:3000)
-open http://localhost:3000     # dashboard
-pytest -q                      # 18 tests
-```
-No other changes to README.
+**3 — Rehearsal walkthrough:**
+Read `demo/scenario.md` and walk through the full script once end-to-end. Note any awkward moments or broken steps.
 
 **Acceptance criteria:**
-- Home page shows the 4-stat bar with live data
-- Chargebacks page shows total exposure line below the heatmap
-- `README.md` has Quick Start section
-- `pnpm --dir web/frontend dev` starts clean (no TS errors)
-- `pytest tests/test_imbalance.py -q` still 18/18
+- All 5 runtime checks above pass
+- `pytest -q` 18/18
+- Scenario walkthrough completes without errors or broken states
 
 ## FILES IN PLAY
-- `web/frontend/components/SavingsBanner.tsx` (extend with stat bar, or create `StatsBar.tsx`)
-- `web/frontend/app/page.tsx` (add StatsBar/stat row)
-- `web/frontend/app/chargebacks/page.tsx` (add total exposure line)
-- `README.md` (append Quick Start)
+- `web/frontend/app/chargebacks/page.tsx` (may need field name fix — see NEXT TASK step 2)
+- `web/frontend/components/StatsBar.tsx` (verify renders correctly)
+- `demo/scenario.md` (read-only for rehearsal walkthrough)
 
 ## LOCKED / DO NOT TOUCH
 - `analytics/**` — all locked
-- `web/api/**` — all locked
-- `web/frontend/app/sku/**`, `web/frontend/components/ImbalanceTable.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx` — locked
+- `web/api/**` — all locked (READ-ONLY to check chargebacks summary fields if needed)
+- `web/frontend/app/sku/**`, `web/frontend/components/ImbalanceTable.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx`, `SavingsBanner.tsx` — locked
+- `web/frontend/app/page.tsx` — locked (stat bar is in)
 - `tests/**` — must stay green
 - `data/seed/**` — locked
 - `scripts/start.sh`, `scripts/handoff.sh` — locked
 
 ## BLOCKERS
-- None.
+- Runtime verification incomplete — pnpm/Python not accessible in Git Bash; run `scripts/start.sh` in a native Windows terminal (PowerShell/CMD) to verify.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
-Read CLAUDE.md and prompt.md. Then implement NEXT TASK exactly as specified. Do not read or open any file not in FILES IN PLAY. Follow the Context budget & handoff protocol from CLAUDE.md — if context drops to ~25% or you finish the task, run `bash scripts/handoff.sh "<commit message>"` and stop. Do not squeeze in extra work before the handoff.
+Read CLAUDE.md and prompt.md. Then implement NEXT TASK exactly as specified. Do not read or open any file not in FILES IN PLAY. Follow the Context budget & handoff protocol from CLAUDE.md — if context drops to ~25%, you are nearing the 5-hour usage limit and cannot complete NEXT TASK fully within the remaining time, or you finish the task, run `bash scripts/handoff.sh "<commit message>"` and stop. Do not squeeze in extra work before the handoff.
 ```
 
 ---

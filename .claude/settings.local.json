@@ -1,7 +1,8 @@
 {
   "permissions": {
     "allow": [
-      "Bash(bash -n scripts/handoff.sh)"
+      "Bash(bash -n scripts/handoff.sh)",
+      "mcp__Claude_Preview__preview_start"
     ]
   }
 }
