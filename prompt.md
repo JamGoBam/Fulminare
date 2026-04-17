@@ -1,60 +1,51 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Build the Next.js 14 frontend dashboard: 3-DC imbalance table (home page) consuming the live `/api/inventory/imbalance` endpoint, with status badges and shadcn/ui styling.
+Expand the dashboard: add a critical-alert banner, the chargeback heatmap page, and beef up seed data so critical/warning badges actually fire in the demo.
 
 ## LAST SESSION SUMMARY
-- Implemented `analytics/imbalance.py`: `compute_imbalance_table` (demand_rate + DoS + imbalance_score per SKU×DC, status from CLAUDE.md thresholds) and `get_top_imbalanced` (top-n by score)
-- Implemented FastAPI: CORS middleware, lifespan startup auto-ingest, `GET /api/inventory/imbalance` endpoint in `web/api/routes/inventory.py`
-- End-to-end smoke test passed: `curl http://localhost:8000/api/inventory/imbalance` returns JSON with sku, product_name, dc, dos, imbalance_score, status
-- Commit: `[LOGIC] imbalance: implement detector, FastAPI /api/inventory/imbalance endpoint` (hash: TBD)
+- Bootstrapped Next.js 16 (App Router, Tailwind v4, shadcn/ui New York), added TanStack Query + axios, shadcn table/badge/card components
+- Implemented `QueryProvider`, `ImbalanceTable` component (skeleton loading, error state, status badges, "—" for null DoS), and dashboard home `app/page.tsx`
+- End-to-end verified: `GET /api/inventory/imbalance` → 200, all 7 columns render with live data, null DoS → "—", sort by imbalance_score descending
+- Commit: `[FRONTEND] dashboard: bootstrap Next.js, imbalance table with live API data` (hash: TBD)
 
 ## NEXT TASK
-Bootstrap Next.js 14 frontend and implement the dashboard home page (3-DC imbalance table).
+Two parallel improvements to make the demo compelling:
 
-**Step 1 — Bootstrap (if `web/frontend/package.json` does not exist):**
-```bash
-cd web && pnpm create next-app frontend --typescript --tailwind --eslint --app --no-src-dir --import-alias "@/*"
-cd frontend && pnpm add @tanstack/react-query axios
-pnpm dlx shadcn@latest init -d   # defaults: New York style, zinc base
-pnpm dlx shadcn@latest add table badge card button
-```
+**1 — Seed data: add critical/warning SKUs** (`data/seed/inventory.csv`, `data/seed/sales.csv`)
+Add rows so at least 1 SKU has DoS < 14 ("critical") at one DC and DoS > 30 at another, and at least 1 SKU has DoS 14–30 ("warning"). This makes the status badges fire in the live demo.
+- Keep existing SKU-001/002/003 rows unchanged
+- Add SKU-004 rows (3 DCs in inventory.csv): one DC with available=50, another with available=5, third with available=300
+- Add SKU-004 to skus.csv (1 row)
+- Add sales for SKU-004 in sales.csv: ~5 units/day at DC_EAST to push that DC to critical (DoS ~1), ~0.5/day at DC_WEST (DoS ~10), 0 at DC_CENTRAL
 
-**Step 2 — Implement `web/frontend/app/page.tsx` (dashboard home):**
-
-Layout:
-- Full-width header: "Prince of Peace — Inventory Dashboard" + today's date
-- Alert banner: "⚠ {N} SKUs with critical imbalance" (count where status=critical, hidden if 0)
-- `<ImbalanceTable>` component
-
-`<ImbalanceTable>` component (`web/frontend/components/ImbalanceTable.tsx`):
-- Fetch from `http://localhost:8000/api/inventory/imbalance?top=20` via TanStack Query
-- Columns: SKU | Product | DC | Demand/day | Days of Supply | Imbalance Score | Status
-- Status cell: shadcn `<Badge>` — `destructive` for critical, `secondary` for warning, `outline` for ok
-- `dos = null` displays as "—"
-- Sort rows by `imbalance_score` descending (client-side, static — no interactive sort needed)
-- Loading state: skeleton rows; error state: red "Failed to load data"
+**2 — Alert banner** (`web/frontend/components/ImbalanceTable.tsx` or new `AlertBanner.tsx`)
+Above the table, show a yellow/red banner: "⚠ {N} SKU-DC pairs at critical levels" when any rows have `status === "critical"`. Hide when N = 0.
+- Add it inside `ImbalanceTable` or as a separate component imported by `page.tsx`
+- Use shadcn `Card` with `bg-destructive/10 border-destructive/30` styling
 
 **Acceptance criteria:**
-- `pnpm --dir web/frontend dev` starts without TypeScript errors
-- Dashboard page renders the imbalance table with real data from the running API
-- Status badges show correct color for critical/warning/ok
-- `null` dos renders as "—" not "null"
+- `pytest tests/test_imbalance.py -q` still passes (18/18)
+- `python3 -m data.ingest --seed` runs clean with new rows
+- Dashboard shows at least 1 red "Critical" badge and 1 yellow "Warning" badge
+- Alert banner appears above the table when critical rows exist
+- `pnpm --dir web/frontend dev` starts clean (no TS errors)
 
 ## FILES IN PLAY
-- `web/frontend/` (bootstrap + implement)
-- `web/frontend/app/page.tsx` (home dashboard)
-- `web/frontend/components/ImbalanceTable.tsx` (new component)
+- `data/seed/inventory.csv` (add SKU-004 rows)
+- `data/seed/sales.csv` (add SKU-004 sales with asymmetric demand)
+- `data/seed/skus.csv` (add SKU-004 product row)
+- `web/frontend/components/ImbalanceTable.tsx` (add alert banner)
+- `web/frontend/app/page.tsx` (if banner is a separate component)
 
 ## LOCKED / DO NOT TOUCH
-- `data/**` — ingest is green; do not touch
 - `analytics/**` — metrics + imbalance locked
-- `web/api/**` — backend is working; do not touch
-- `tests/**` — all tests passing; do not touch
+- `web/api/**` — backend working; do not touch
+- `tests/test_imbalance.py` — must stay green
+- `data/seed/` files other than inventory.csv, sales.csv, skus.csv
 
 ## BLOCKERS
 - Real POP CSVs still not received. No blocker — synthetic seed data is sufficient.
-- API must be running on port 8000 for the frontend to fetch data during dev.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
