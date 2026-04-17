@@ -1,26 +1,65 @@
-"""Recommendation endpoints: GET /api/recommendations/transfers."""
+"""Recommendation endpoints: transfers and ranked alerts."""
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Optional
 
 import pandas as pd
-from fastapi import APIRouter, HTTPException
-
-from analytics.transfer import transfer_recommendations
+from fastapi import APIRouter, HTTPException, Query
+from pydantic import BaseModel
 
 router = APIRouter()
 
 _PROCESSED = Path("data/processed")
 
 
-@router.get("/recommendations/transfers")
-def get_transfer_recommendations() -> list[dict]:
+def _parquet(name: str) -> pd.DataFrame:
     try:
-        inventory = pd.read_parquet(_PROCESSED / "inventory.parquet")
-        sales = pd.read_parquet(_PROCESSED / "sales.parquet")
-        skus = pd.read_parquet(_PROCESSED / "skus.parquet")
-        freight = pd.read_parquet(_PROCESSED / "freight.parquet")
+        return pd.read_parquet(_PROCESSED / name)
     except FileNotFoundError as exc:
         raise HTTPException(status_code=503, detail=f"Data not ready: {exc}") from exc
-    sales["date"] = pd.to_datetime(sales["date"])
-    return transfer_recommendations(inventory, sales, skus, freight).to_dict(orient="records")
+
+
+def _nullify(df: pd.DataFrame) -> list[dict]:
+    """Convert DataFrame to records, replacing NaN/NaT with None for JSON safety."""
+    return df.where(pd.notna(df), other=None).to_dict(orient="records")
+
+
+class TransferOut(BaseModel):
+    sku: str
+    product_name: str
+    dest_dc: str
+    action: str
+    origin_dc: Optional[str] = None
+    qty: Optional[int] = None
+    transfer_cost: Optional[float] = None
+    inbound_po_id: Optional[str] = None
+    inbound_eta: Optional[str] = None
+    inbound_qty: Optional[int] = None
+    days_to_stockout: Optional[float] = None
+    penalty_avoided: float
+    net_saving: float
+    reason: str
+
+
+class AlertOut(BaseModel):
+    rank: int
+    sku: str
+    dc: str
+    priority_score: float
+    action: Optional[str] = None
+    reason: str
+    days_to_stockout: Optional[float] = None
+    exposure_dollars: float
+
+
+@router.get("/recommendations/transfers", response_model=list[TransferOut])
+def get_transfer_recommendations() -> list[dict]:
+    df = _parquet("transfers_computed.parquet")
+    return _nullify(df)
+
+
+@router.get("/recommendations/alerts", response_model=list[AlertOut])
+def get_alerts(limit: int = Query(default=10, ge=1, le=100)) -> list[dict]:
+    df = _parquet("alerts.parquet")
+    return _nullify(df.head(limit))
