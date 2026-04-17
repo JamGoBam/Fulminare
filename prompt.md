@@ -1,43 +1,55 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Implement `analytics/metrics.py` primitives (demand_rate, days_of_supply, imbalance_score, transfer_cost) so Block 5 (imbalance detector + FastAPI) can build on stable, tested math.
+Implement `analytics/imbalance.py` (site-level imbalance detection) and wire up a minimal FastAPI backend with an `/api/inventory/imbalance` endpoint, so the frontend can start rendering the 3-DC imbalance table.
 
 ## LAST SESSION SUMMARY
-- Implemented `data/ingest.py` (load_table, run, main), `data/schemas.py` (9 pydantic v2 models), `data/constants.py` (DC_MAP populated with short + canonical labels)
-- Created 9 seed CSVs in `data/seed/` (3–18 rows each); all DC labels normalize to canonical on ingest
-- 11/11 pytest tests pass; `python -m data.ingest --seed` runs clean; DuckDB `SELECT COUNT(*) FROM inventory` returns 9
-- Commit: `[DATA] ingest: implement loaders, schemas, seed CSVs, tests` (hash TBD — fill in after handoff commit)
+- Implemented `analytics/forecast.py` (`demand_rate`): trailing-window avg units/day, returns 0.0 on no sales
+- Implemented `analytics/metrics.py` (`days_of_supply`, `imbalance_score`, `transfer_cost`): all formulas mirror CLAUDE.md exactly, inf-safe, pallet rounding via `math.ceil`
+- 18/18 `pytest tests/test_imbalance.py -q` tests pass; imports verified clean
+- Commit: `[LOGIC] metrics: implement demand_rate, days_of_supply, imbalance_score, transfer_cost` (hash: TBD — fill in after handoff)
 
 ## NEXT TASK
-Implement `analytics/metrics.py` + `analytics/forecast.py` + tests.
+Implement `analytics/imbalance.py` + minimal FastAPI backend + `/api/inventory/imbalance` endpoint.
 
-**Functions to implement** (formulas are in CLAUDE.md Core metrics — copy them exactly, do not deviate):
+**Functions to implement in `analytics/imbalance.py`:**
 
-1. `demand_rate(sales_df, sku, dc, window_days=30) -> float` — trailing-window avg units/day. Return 0.0 if no sales.
-2. `days_of_supply(available, rate) -> float` — `available / rate`. Return `float('inf')` if rate == 0.
-3. `imbalance_score(dos_values: list[float]) -> float` — `(max - min) / mean`, clamped to [0, 10]. Return 0.0 if mean == 0 or fewer than 2 DCs.
-4. `transfer_cost(qty, units_per_case, cost_per_pallet, cases_per_pallet=40) -> float` — `cost_per_pallet * ceil(qty / (units_per_case * cases_per_pallet))`.
+1. `compute_imbalance_table(inventory_df, sales_df, skus_df) -> pd.DataFrame`
+   - For each SKU across all 3 DCs, compute: `demand_rate` (from `analytics.forecast`), `days_of_supply` (from `analytics.metrics`), `imbalance_score` (from `analytics.metrics`)
+   - Output columns: `sku`, `product_name`, `dc`, `on_hand`, `available`, `demand_rate`, `dos`, `imbalance_score`, `status`
+   - `status` = `"critical"` if dos < 14, `"warning"` if dos < 30, `"ok"` otherwise (use CLAUDE.md thresholds)
+   - Row per SKU×DC combination
 
-Put `demand_rate` in `analytics/forecast.py`; the other three in `analytics/metrics.py`. Import `demand_rate` from `analytics.forecast` where needed.
+2. `get_top_imbalanced(imbalance_df, n=20) -> pd.DataFrame`
+   - Return top-n rows sorted by `imbalance_score` descending
+
+**FastAPI in `web/api/main.py` + `web/api/routes/inventory.py`:**
+
+- `GET /api/inventory/imbalance` — returns JSON list from `compute_imbalance_table` via `get_top_imbalanced`
+- Load data from parquet files in `data/processed/` (use `pd.read_parquet`)
+- App startup: check if parquets exist; if not, run `data.ingest.run(SEED, PROCESSED, DB_PATH)` to generate them
+- Include CORS middleware (origins=["*"] for local dev)
 
 **Acceptance criteria:**
-- `pytest tests/test_imbalance.py -q` — at least 2 tests per function, all pass
-- Edge cases covered: zero demand (DoS = inf), zero available (DoS = 0), single-DC imbalance_score (returns 0), partial pallet rounds UP
-- `from analytics.metrics import days_of_supply, imbalance_score, transfer_cost` works without error
+- `pytest tests/test_imbalance.py -q` still all pass
+- `uvicorn web.api.main:app --port 8000` starts without error
+- `curl http://localhost:8000/api/inventory/imbalance` returns a JSON array with keys: `sku`, `product_name`, `dc`, `dos`, `imbalance_score`, `status`
+- `from analytics.imbalance import compute_imbalance_table, get_top_imbalanced` works without error
 
 ## FILES IN PLAY
-- `analytics/metrics.py` (implement: days_of_supply, imbalance_score, transfer_cost)
-- `analytics/forecast.py` (implement: demand_rate)
-- `tests/test_imbalance.py` (implement tests — use hard-coded DataFrames, NOT data/processed parquets)
+- `analytics/imbalance.py` (implement: compute_imbalance_table, get_top_imbalanced)
+- `web/api/main.py` (FastAPI app + CORS + startup)
+- `web/api/routes/inventory.py` (GET /api/inventory/imbalance endpoint)
+- `tests/test_imbalance.py` (may add tests for imbalance table — optional, existing tests must stay green)
 
 ## LOCKED / DO NOT TOUCH
 - `data/**` — ingest is green; do not touch
-- `web/**` — frontend not started
-- `analytics/imbalance.py`, `analytics/alerts.py`, `analytics/transfer.py`, `analytics/chargeback.py` — Block 5/7 work
+- `analytics/metrics.py`, `analytics/forecast.py` — metrics are locked
+- `analytics/alerts.py`, `analytics/transfer.py`, `analytics/chargeback.py` — Block 7 work
+- `web/frontend/**` — not started
 
 ## BLOCKERS
-- Real POP CSVs still not received. No blocker for this block — pure math, no real data needed.
+- Real POP CSVs still not received. No blocker — synthetic seed data is sufficient.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
