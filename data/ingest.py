@@ -84,12 +84,23 @@ def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest CSVs into parquet + DuckDB views.")
     parser.add_argument("--raw", default="data/raw", help="Source CSV directory")
     parser.add_argument("--seed", action="store_true", help="Use data/seed/ as source")
+    parser.add_argument("--real", action="store_true", help="Use real POP data from data/raw/")
     parser.add_argument("--out", default="data/processed", help="Output directory")
     args = parser.parse_args()
-    src = Path("data/seed") if args.seed else Path(args.raw)
     out = Path(args.out)
-    print(f"Ingesting from {src} -> {out}")
-    run(src, out, out / "pop.duckdb")
+
+    # Auto-detect real data: use it if POP_InventorySnapshot.xlsx is present
+    real_marker = Path("data/raw/POP_InventorySnapshot.xlsx")
+    use_real = args.real or (not args.seed and real_marker.exists())
+
+    if use_real:
+        from data.ingest_real import run_real
+        print(f"Ingesting real POP data from data/raw -> {out}")
+        run_real(Path("data/raw"), out, out / "pop.duckdb")
+    else:
+        src = Path("data/seed") if args.seed else Path(args.raw)
+        print(f"Ingesting from {src} -> {out}")
+        run(src, out, out / "pop.duckdb")
     print("Done.")
 
 

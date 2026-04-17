@@ -17,12 +17,12 @@ dist/
 build/
 *.tsbuildinfo
 
-# Data — raw CSVs never committed; seed CSVs ARE committed
-/data/raw/**
-!/data/raw/.gitkeep
+# Data — processed outputs are regenerated from raw/seed, never committed
 /data/processed/*.parquet
 /data/processed/*.duckdb
 /data/processed/*.duckdb.wal
+# Raw data: real POP files committed; the 105MB PDF is excluded
+/data/raw/POP_Catalog_2024.pdf
 
 # Editor / OS
 .vscode/

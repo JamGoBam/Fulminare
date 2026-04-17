@@ -11,8 +11,6 @@ class DC(StrEnum):
 
 
 # Map source-data DC labels to canonical codes.
-# Canonical names are included as pass-through so freight.csv (which already uses DC_EAST etc.)
-# round-trips cleanly. Add real POP source labels here when raw CSVs arrive (Block 4).
 DC_MAP: dict[str, DC] = {
     # Canonical pass-through
     "DC_EAST": DC.EAST,
@@ -26,7 +24,38 @@ DC_MAP: dict[str, DC] = {
     "East": DC.EAST,
     "West": DC.WEST,
     "Central": DC.CENTRAL,
-    # TODO(Block 4): add real POP DC codes here, e.g. "ATL": DC.EAST
+    # Real POP location codes: 1=San Francisco, 2=New Jersey, 3=Los Angeles
+    "1": DC.WEST,
+    "2": DC.EAST,
+    "3": DC.CENTRAL,
+    "sf": DC.WEST,
+    "SF": DC.WEST,
+    "nj": DC.EAST,
+    "NJ": DC.EAST,
+    "la": DC.CENTRAL,
+    "LA": DC.CENTRAL,
+}
+
+# Maps real POP chargeback cause codes -> canonical CauseCode values.
+REAL_CAUSE_CODE_MAP: dict[str, str] = {
+    # TPR / Promotional (planned, filtered from risk)
+    "CRED01": "TPR", "CRED02": "TPR", "CRED03": "TPR", "CRED04": "TPR",
+    "CRED05": "TPR", "CRED06": "TPR", "CRED07": "TPR", "CRED10-D": "TPR",
+    "CRED17": "TPR", "CRED19": "TPR", "CRED20": "TPR",
+    "CRED-COM": "TPR", "CRED-DIS": "TPR", "CRED-PRO": "TPR",
+    # DAMAGE
+    "CRED08": "DAMAGE", "CRED-DMG": "DAMAGE", "CRED-SDT": "DAMAGE",
+    "CRED15": "DAMAGE", "CRED16": "DAMAGE",
+    # SHORT_SHIP (fulfillment failures)
+    "CRED-FUL": "SHORT_SHIP", "CRED21": "SHORT_SHIP",
+    # LATE_DELIVERY (shipping/logistics penalties)
+    "CRED11-F": "LATE_DELIVERY", "CRED18": "LATE_DELIVERY",
+    "CRED13": "LATE_DELIVERY", "CRED-TRF": "LATE_DELIVERY",
+    # MISSED_WINDOW (compliance, audits, misc penalties)
+    "CRED11-O": "MISSED_WINDOW", "CRED12": "MISSED_WINDOW",
+    "CRED09": "MISSED_WINDOW", "CRED10": "MISSED_WINDOW",
+    "CRED14": "MISSED_WINDOW", "CRED99": "MISSED_WINDOW",
+    "CRED-OTH": "MISSED_WINDOW", "CRED-STO": "MISSED_WINDOW",
 }
 
 
