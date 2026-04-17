@@ -4,44 +4,40 @@
 Ship **Transfer-vs-Wait decision engine + AI chatbot for non-technical ops managers**. Keep the J-72402 demo narrative intact. Full roadmap in `shared/roadmap.md` (Phase 0 → 5).
 
 ## LAST SESSION SUMMARY
-- Shipped Phase 1b: `analytics/transfer.py` fully rewritten — new signature includes `open_po_df` and `chargebacks_df`; one row per `(sku, dest_dc)`; WAIT for qualifying inbound PO (with `delay_flag +7d` shift); TRANSFER with origin-protection (`dos_origin_after >= DOS_WARNING`); WAIT-escalation when no protected origin; `penalty_rate` replaces flat `$15/unit` proxy.
-- `tests/test_transfer.py`: 6 tests covering all 5 acceptance criteria (WAIT on inbound, TRANSFER on no inbound, origin-protection rejection, delay_flag flip, one-row guarantee). Full suite: 50/50 passing.
-- Old flat `_PENALTY_PER_UNIT = 15.0` removed; `chargeback.penalty_rate` used throughout.
+- Shipped Phase 1c + 1d: `analytics/alerts.py` implements `rank_alerts` (priority = normalize(imbalance) + normalize(annual_exposure) + normalize(urgency); WAIT-with-inbound demoted ×0.5; plain-English reasons). `analytics/pipeline.py` orchestrates ingest→imbalance→chargeback-aggregates→transfer→alerts and writes all derived parquets. `web/api/main.py` lifespan now calls `pipeline.run()` after ingest if `alerts.parquet` is missing.
+- Pipeline verified end-to-end against seed data (SKU-004 alerts with real dollar figures).
+- `tests/test_alerts.py`: 9 tests covering output shape, ranking order, WAIT-inbound demotion, reason quality. Full suite: 59/59 passing.
 
 ## NEXT TASK
-**Phase 1c — Implement `analytics/alerts.py`** per `shared/roadmap.md` § "Phase 1 → 1c". One commit.
+**Phase 2 — API surface** per `shared/roadmap.md` § "Phase 2". One commit per logical group (routes, then summary).
 
-Acceptance criteria:
-1. Function:
-   ```python
-   def rank_alerts(imbalance_df, transfer_df, chargebacks_df, n=10) -> pd.DataFrame
-   ```
-   Output columns: `rank, sku, dc, priority_score, action, reason, days_to_stockout, exposure_dollars`
-2. Priority formula: `normalize(imbalance) + normalize(annual_exposure) + urgency(1/max(days_to_stockout, 1))`. All 3 components normalized to [0,1] within the result set.
-3. WAIT-with-inbound-relief rows rank lower than TRANSFER rows with same score.
-4. `reason` is plain-English ops-manager prose (not dev jargon).
-5. `tests/test_alerts.py` (new): ranking order is descending by priority, inbound-relief row ranks lower, reason non-empty.
-6. `pytest -q` → 50 + new tests all passing.
+Acceptance criteria (all additive, typed pydantic response models):
+1. `GET /api/recommendations/transfers` — updated shape matching Phase 1b output columns (`action, origin_dc, qty, transfer_cost, inbound_po_id, inbound_eta, inbound_qty, days_to_stockout, penalty_avoided, net_saving, reason`). Read from `transfers_computed.parquet`.
+2. `GET /api/recommendations/alerts?limit=10` — new. Read from `alerts.parquet`.
+3. `GET /api/chargebacks/top-causes?n=5` — new. Read from `cb_top_causes.parquet`.
+4. `GET /api/chargebacks/top-customers?n=10` — new. Read from `cb_top_customers.parquet`.
+5. `GET /api/chargebacks/by-channel` — new. Read from `cb_top_channels.parquet` (top_channels output).
+6. `GET /api/chargebacks/trend` — new. Read from `cb_monthly_trend.parquet`.
+7. `GET /api/inventory/sku/{sku}` — new. Returns `{sku, product_name, dcs: [{dc, dos, status, demand_rate}], open_pos: [...], recommendation: {action,...}, chargeback_history_summary: {total_amount, count}}`. Computed on the fly from parquets.
+8. `GET /api/summary` rewritten to **manual-vs-system**: `{manual_annual_penalty, system_avoidable_annual, delta, pct_reduction}`. `manual` = last-12-months chargebacks annualized; `system` = sum of TRANSFER rows' `net_saving × 12`.
+9. `curl localhost:8000/api/recommendations/alerts | jq '.[0]'` returns a ranked alert.
+10. `curl localhost:8000/api/inventory/sku/J-72402` (or SKU-004 on seed) returns per-DC shape.
+11. `curl localhost:8000/api/summary` returns `{manual_annual_penalty, system_avoidable_annual, delta, pct_reduction}`.
+12. `pytest -q` still 59/59+ (no new Python tests required for Phase 2, but no regressions).
 
-**Also wire `analytics/pipeline.py`** per Phase 1d (same commit or next):
-- `run(processed_dir)` reads all parquets, orchestrates imbalance → chargeback functions → transfer → alerts, writes output parquets.
-- CLI entry: `python -m analytics.pipeline`.
-
-Commit message: `[LOGIC] alerts: rank_alerts + pipeline orchestration`
-
-Then hand off to Phase 1e (tests) or Phase 2 (API surface) if 1c/1d are done in the same session.
+Commit messages: `[BACKEND] api: add alerts, chargeback, sku endpoints` then `[BACKEND] api: rewrite summary to manual-vs-system`
 
 ## FILES IN PLAY
-- `analytics/alerts.py` — implement `rank_alerts`
-- `analytics/pipeline.py` — wire orchestration
-- `tests/test_alerts.py` — new, 3+ tests
-- `analytics/imbalance.py` — read `compute_imbalance` signature (read-only)
+- `web/api/routes/recommendations.py` — update transfers shape, add alerts endpoint
+- `web/api/routes/chargebacks.py` — add top-causes, top-customers, by-channel, trend endpoints
+- `web/api/routes/inventory.py` — add `/sku/{sku}` endpoint
+- `web/api/main.py` — already updated (lifespan); no further changes needed unless summary moves here
+- `web/api/routes/` — may add a new `summary.py` route for the rewritten `/api/summary`
 
 ## LOCKED / DO NOT TOUCH
 - Hero SKU **J-72402** and its demo numbers
-- `demo/scenario.md` narrative and the 5-step walkthrough
-- `analytics/transfer.py` (just rewritten — do not change)
-- `analytics/chargeback.py` (Phase 1a — do not change)
+- `demo/scenario.md` narrative
+- All `analytics/` modules (Phase 1 work — read-only for Phase 2)
 - All entries in `CLAUDE.md` § "Do not re-derive" (14 items)
 
 ## BLOCKERS
@@ -50,5 +46,5 @@ Then hand off to Phase 1e (tests) or Phase 2 (API surface) if 1c/1d are done in 
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
-Read CLAUDE.md and prompt.md. Then read shared/roadmap.md for the full phase breakdown. Implement the NEXT TASK (Phase 1c) exactly as specified. Follow the Context budget & handoff protocol from CLAUDE.md — commit small, push often, hand off when context hits 25%.
+Read CLAUDE.md and prompt.md. Then read shared/roadmap.md for the full phase breakdown. Implement the NEXT TASK (Phase 2) exactly as specified. Follow the Context budget & handoff protocol from CLAUDE.md — commit small, push often, hand off when context hits 25%.
 ```

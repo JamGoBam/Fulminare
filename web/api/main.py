@@ -21,6 +21,11 @@ async def lifespan(app: FastAPI):
         print("Parquets not found — running ingest from seed data...")
         ingest_run(_SEED, _PROCESSED, _DB)
         print("Ingest complete.")
+    if not (_PROCESSED / "alerts.parquet").exists():
+        from analytics.pipeline import run as pipeline_run
+        print("Derived tables not found — running analytics pipeline...")
+        pipeline_run(_PROCESSED)
+        print("Pipeline complete.")
     yield
 
 
