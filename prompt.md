@@ -4,49 +4,45 @@
 Ship **Transfer-vs-Wait decision engine + AI chatbot for non-technical ops managers**. Keep the J-72402 demo narrative intact. Full roadmap in `shared/roadmap.md` (Phase 0 → 5).
 
 ## LAST SESSION SUMMARY
-- Shipped Phase 1a: `analytics/chargeback.py` now exports `top_causes`, `top_customers`, `top_channels`, `by_dc`, `monthly_trend`, `penalty_rate` — all TPR-filtered. `penalty_rate` implements the 4-level fallback chain (customer+channel+dc → channel+dc → dc → global).
-- `tests/test_chargeback.py` extended: 15 new test cases (TPR exclusion, column shapes, n-respected, fallback chain incl. TPR-not-in-global). Full suite: 44/44 passing.
-- Existing `chargeback_summary` unchanged; `_no_tpr` helper extracted to avoid duplication.
+- Shipped Phase 1b: `analytics/transfer.py` fully rewritten — new signature includes `open_po_df` and `chargebacks_df`; one row per `(sku, dest_dc)`; WAIT for qualifying inbound PO (with `delay_flag +7d` shift); TRANSFER with origin-protection (`dos_origin_after >= DOS_WARNING`); WAIT-escalation when no protected origin; `penalty_rate` replaces flat `$15/unit` proxy.
+- `tests/test_transfer.py`: 6 tests covering all 5 acceptance criteria (WAIT on inbound, TRANSFER on no inbound, origin-protection rejection, delay_flag flip, one-row guarantee). Full suite: 50/50 passing.
+- Old flat `_PENALTY_PER_UNIT = 15.0` removed; `chargeback.penalty_rate` used throughout.
 
 ## NEXT TASK
-**Phase 1b — Rewrite `analytics/transfer.py`** per `shared/roadmap.md` § "Phase 1 → 1b". One commit.
+**Phase 1c — Implement `analytics/alerts.py`** per `shared/roadmap.md` § "Phase 1 → 1c". One commit.
 
 Acceptance criteria:
-1. Function signature:
+1. Function:
    ```python
-   def transfer_recommendations(
-       inventory_df, sales_df, skus_df, freight_df,
-       open_po_df, chargebacks_df,
-   ) -> pd.DataFrame
+   def rank_alerts(imbalance_df, transfer_df, chargebacks_df, n=10) -> pd.DataFrame
    ```
-2. Output columns: `sku, product_name, dest_dc, action, origin_dc, qty, transfer_cost, inbound_po_id, inbound_eta, inbound_qty, days_to_stockout, penalty_avoided, net_saving, reason`. `action ∈ {"TRANSFER", "WAIT"}`.
-3. **WAIT** when inbound PO arrives before stockout AND lifts DoS ≥ `DOS_WARNING` (30). Apply `delay_flag +7d` shift.
-4. **TRANSFER** when no qualifying PO: best origin where DoS_after_transfer ≥ `DOS_WARNING` (origin-protection). Prefer largest cushion, tie-break by freight cost.
-5. **WAIT** with escalation reason when no protected origin available.
-6. `penalty_avoided = penalty_rate(dominant_customer, dominant_channel, dest_dc) × expected_shortfall_units`. Dominant = last 90 days of sales.
-7. `net_saving = penalty_avoided - transfer_cost` (0 for WAIT). Emit only if net > 0 OR action=WAIT.
-8. Exactly one row per `(sku, dest_dc)`.
-9. `tests/test_transfer.py` covers 5 cases: (i) WAIT when inbound in time, (ii) TRANSFER when no inbound, (iii) origin-protection rejects, (iv) `delay_flag` flips WAIT→TRANSFER, (v) one row per (sku, dest_dc).
-10. `pytest -q` → 44 + new tests all passing.
+   Output columns: `rank, sku, dc, priority_score, action, reason, days_to_stockout, exposure_dollars`
+2. Priority formula: `normalize(imbalance) + normalize(annual_exposure) + urgency(1/max(days_to_stockout, 1))`. All 3 components normalized to [0,1] within the result set.
+3. WAIT-with-inbound-relief rows rank lower than TRANSFER rows with same score.
+4. `reason` is plain-English ops-manager prose (not dev jargon).
+5. `tests/test_alerts.py` (new): ranking order is descending by priority, inbound-relief row ranks lower, reason non-empty.
+6. `pytest -q` → 50 + new tests all passing.
 
-Commit message: `[LOGIC] transfer: rewrite with open_po, delay_flag, origin-protection, penalty_rate`
+**Also wire `analytics/pipeline.py`** per Phase 1d (same commit or next):
+- `run(processed_dir)` reads all parquets, orchestrates imbalance → chargeback functions → transfer → alerts, writes output parquets.
+- CLI entry: `python -m analytics.pipeline`.
 
-Then continue with Phase 1c (`analytics/alerts.py`) if context permits.
+Commit message: `[LOGIC] alerts: rank_alerts + pipeline orchestration`
+
+Then hand off to Phase 1e (tests) or Phase 2 (API surface) if 1c/1d are done in the same session.
 
 ## FILES IN PLAY
-- `analytics/transfer.py` — full rewrite
-- `tests/test_transfer.py` — add 5 test cases
-- `analytics/chargeback.py` — already has `penalty_rate` (read-only)
-- `analytics/forecast.py` — has `demand_rate` (read-only)
-- `analytics/metrics.py` — has `days_of_supply`, `transfer_cost` (read-only)
-- `data/constants.py` — has `DOS_WARNING`, `INTER_DC_TRANSIT_DAYS`, `CASES_PER_PALLET` (read-only)
+- `analytics/alerts.py` — implement `rank_alerts`
+- `analytics/pipeline.py` — wire orchestration
+- `tests/test_alerts.py` — new, 3+ tests
+- `analytics/imbalance.py` — read `compute_imbalance` signature (read-only)
 
 ## LOCKED / DO NOT TOUCH
-- Hero SKU **J-72402** and its demo numbers (48/6094/480 across East/West/Central; $13,680 annual banner)
+- Hero SKU **J-72402** and its demo numbers
 - `demo/scenario.md` narrative and the 5-step walkthrough
-- Existing `chargeback_summary` in `analytics/chargeback.py`
-- `web/frontend/lib/api.ts` (Phase 0 work)
-- All entries in `CLAUDE.md` § "Do not re-derive" (14 items, incl. delay_flag +7d = locked assumption #11)
+- `analytics/transfer.py` (just rewritten — do not change)
+- `analytics/chargeback.py` (Phase 1a — do not change)
+- All entries in `CLAUDE.md` § "Do not re-derive" (14 items)
 
 ## BLOCKERS
 - Phase 0–2 have none.
@@ -54,5 +50,5 @@ Then continue with Phase 1c (`analytics/alerts.py`) if context permits.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
-Read CLAUDE.md and prompt.md. Then read shared/roadmap.md for the full phase breakdown. Implement the NEXT TASK (Phase 1b) exactly as specified. Follow the Context budget & handoff protocol from CLAUDE.md — commit small, push often, hand off when context hits 25%.
+Read CLAUDE.md and prompt.md. Then read shared/roadmap.md for the full phase breakdown. Implement the NEXT TASK (Phase 1c) exactly as specified. Follow the Context budget & handoff protocol from CLAUDE.md — commit small, push often, hand off when context hits 25%.
 ```

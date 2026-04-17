@@ -1,17 +1,48 @@
-"""Transfer-vs-wait decision with explicit dollar tradeoff."""
+"""Transfer-vs-wait decision with explicit dollar tradeoff.
+
+One row per (sku, dest_dc) where DoS < DOS_WARNING.
+action="WAIT"     — inbound PO covers the gap, or no spare stock anywhere.
+action="TRANSFER" — profitable move from a protected origin DC.
+"""
 from __future__ import annotations
 
 import math
 
 import pandas as pd
 
+from analytics.chargeback import penalty_rate
 from analytics.forecast import demand_rate
 from analytics.metrics import days_of_supply, transfer_cost
-from data.constants import DC, DEMAND_WINDOW_DAYS, DOS_TARGET, DOS_WARNING
+from data.constants import (
+    DC,
+    DEMAND_WINDOW_DAYS,
+    DOS_WARNING,
+    INTER_DC_TRANSIT_DAYS,
+)
 
 _ALL_DCS = [str(DC.EAST), str(DC.WEST), str(DC.CENTRAL)]
 _DEFAULT_COST_PER_PALLET = 300.0
-_PENALTY_PER_UNIT = 15.0  # proxy chargeback penalty for demo (no real model yet)
+_DOMINANT_WINDOW_DAYS = 90
+
+_OUTPUT_COLS = [
+    "sku", "product_name", "dest_dc", "action", "origin_dc", "qty",
+    "transfer_cost", "inbound_po_id", "inbound_eta", "inbound_qty",
+    "days_to_stockout", "penalty_avoided", "net_saving", "reason",
+]
+
+
+def _dominant_customer_channel(
+    sales_df: pd.DataFrame, sku: str, dc: str, today: pd.Timestamp
+) -> tuple[str, str]:
+    cutoff = today - pd.Timedelta(days=_DOMINANT_WINDOW_DAYS)
+    dates = pd.to_datetime(sales_df["date"])
+    mask = (sales_df["sku"] == sku) & (sales_df["ship_from_dc"] == dc) & (dates >= cutoff)
+    recent = sales_df[mask]
+    if recent.empty:
+        return ("UNKNOWN", "UNKNOWN")
+    customer = str(recent.groupby("customer_id")["qty"].sum().idxmax())
+    channel = str(recent.groupby("channel")["qty"].sum().idxmax())
+    return customer, channel
 
 
 def transfer_recommendations(
@@ -19,10 +50,13 @@ def transfer_recommendations(
     sales_df: pd.DataFrame,
     skus_df: pd.DataFrame,
     freight_df: pd.DataFrame,
+    open_po_df: pd.DataFrame,
+    chargebacks_df: pd.DataFrame,
 ) -> pd.DataFrame:
-    """Return profitable SKU transfers: surplus DC → deficit DC, sorted by net_saving desc."""
-    sku_info = skus_df.set_index("sku")[["product_name", "units_per_case"]].to_dict("index")
+    """Return one row per (sku, dest_dc) with DoS < DOS_WARNING, sorted by net_saving desc."""
+    today = pd.Timestamp(pd.to_datetime(inventory_df["snapshot_date"]).max())
 
+    sku_info = skus_df.set_index("sku")[["product_name", "units_per_case"]].to_dict("index")
     freight_lookup: dict[tuple[str, str], float] = {
         (str(r["origin"]), str(r["destination"])): float(r["cost_per_pallet"])
         for _, r in freight_df.iterrows()
@@ -34,10 +68,9 @@ def transfer_recommendations(
         if sku not in sku_info:
             continue
         units_per_case = int(sku_info[sku]["units_per_case"])
-        product_name = sku_info[sku]["product_name"]
+        product_name = str(sku_info[sku]["product_name"])
 
         inv_sku = inventory_df[inventory_df["sku"] == sku]
-
         dc_data: dict[str, dict] = {}
         for dc in _ALL_DCS:
             dc_inv = inv_sku[inv_sku["dc"] == dc]
@@ -46,60 +79,145 @@ def transfer_recommendations(
             dos = days_of_supply(available, rate)
             dc_data[dc] = {"available": available, "rate": rate, "dos": dos}
 
-        # Surplus: DoS > 90, or inf with stock on hand
-        surplus = [
-            dc for dc, d in dc_data.items()
-            if d["available"] > 0 and (math.isinf(d["dos"]) or d["dos"] > DOS_TARGET)
-        ]
-        # Deficit: DoS < 30 (critical or warning), finite
-        deficit = [
-            dc for dc, d in dc_data.items()
-            if not math.isinf(d["dos"]) and d["dos"] < DOS_WARNING
-        ]
+        for dest_dc in _ALL_DCS:
+            dos_dest = dc_data[dest_dc]["dos"]
+            if math.isinf(dos_dest) or dos_dest >= DOS_WARNING:
+                continue
+            rate_dest = dc_data[dest_dc]["rate"]
+            if rate_dest == 0:
+                continue
+            available_dest = dc_data[dest_dc]["available"]
+            days_to_stockout = dos_dest  # available / rate
 
-        for dest_dc in deficit:
-            for origin_dc in surplus:
-                if origin_dc == dest_dc:
-                    continue
+            # Units needed to lift dest to DOS_WARNING
+            qty_needed = math.ceil(
+                max(0.0, DOS_WARNING * rate_dest - available_dest) / units_per_case
+            ) * units_per_case
 
-                rate_dest = dc_data[dest_dc]["rate"]
-                available_dest = dc_data[dest_dc]["available"]
-                dos_dest = dc_data[dest_dc]["dos"]
-                dos_origin = dc_data[origin_dc]["dos"]
+            dom_customer, dom_channel = _dominant_customer_channel(
+                sales_df, sku, dest_dc, today
+            )
+            p_rate = penalty_rate(chargebacks_df, dom_customer, dom_channel, dest_dc)
+            penalty_avoided = p_rate * qty_needed
 
-                # Qty to bring dest to 30-day supply, rounded up to nearest case
-                raw_qty = max(0.0, DOS_WARNING * rate_dest - available_dest)
-                if raw_qty <= 0:
-                    continue
-                qty = math.ceil(raw_qty / units_per_case) * units_per_case
+            # ── Check for qualifying inbound PO ───────────────────────────────
+            inbound = open_po_df[
+                (open_po_df["sku"] == sku) & (open_po_df["dc"] == dest_dc)
+            ].copy()
 
-                cost_per_pallet = freight_lookup.get((origin_dc, dest_dc), _DEFAULT_COST_PER_PALLET)
-                cost = transfer_cost(qty, units_per_case, cost_per_pallet)
+            best_po = None
+            if not inbound.empty:
+                inbound["eta_adj"] = pd.to_datetime(inbound["expected_arrival"]) + (
+                    inbound["delay_flag"].apply(
+                        lambda x: pd.Timedelta(days=7) if x else pd.Timedelta(0)
+                    )
+                )
+                inbound["days_until"] = (inbound["eta_adj"] - today).dt.days
+                inbound["dos_after"] = (available_dest + inbound["qty"]) / rate_dest
+                qualifying = inbound[
+                    (inbound["days_until"] <= days_to_stockout + INTER_DC_TRANSIT_DAYS)
+                    & (inbound["dos_after"] >= DOS_WARNING)
+                ].sort_values("days_until")
+                if not qualifying.empty:
+                    best_po = qualifying.iloc[0]
 
-                risk_avoided = (DOS_WARNING - dos_dest) * rate_dest * _PENALTY_PER_UNIT
-                net = risk_avoided - cost
-
-                if net <= 0:
-                    continue
-
+            if best_po is not None:
+                n_days = int(best_po["days_until"])
                 rows.append({
                     "sku": sku,
                     "product_name": product_name,
-                    "origin_dc": origin_dc,
                     "dest_dc": dest_dc,
-                    "dos_origin": None if math.isinf(dos_origin) else round(dos_origin, 1),
-                    "dos_dest": round(dos_dest, 1),
-                    "qty_to_transfer": int(qty),
-                    "transfer_cost": round(cost, 2),
-                    "chargeback_risk_avoided": round(risk_avoided, 2),
-                    "net_saving": round(net, 2),
+                    "action": "WAIT",
+                    "origin_dc": None,
+                    "qty": None,
+                    "transfer_cost": None,
+                    "inbound_po_id": str(best_po["po_id"]),
+                    "inbound_eta": str(best_po["eta_adj"].date()),
+                    "inbound_qty": int(best_po["qty"]),
+                    "days_to_stockout": round(days_to_stockout, 1),
+                    "penalty_avoided": round(penalty_avoided, 2),
+                    "net_saving": round(penalty_avoided, 2),
+                    "reason": (
+                        f"Inbound PO {best_po['po_id']} arrives in {n_days} day(s) "
+                        f"with {int(best_po['qty'])} units"
+                    ),
                 })
+                continue
+
+            # ── Find best protected origin for TRANSFER ───────────────────────
+            best_origin: str | None = None
+            best_cushion = -1.0
+            best_cost = float("inf")
+
+            for origin_dc in _ALL_DCS:
+                if origin_dc == dest_dc:
+                    continue
+                avail_o = dc_data[origin_dc]["available"]
+                rate_o = dc_data[origin_dc]["rate"]
+                if avail_o < qty_needed:
+                    continue
+                dos_o_after = days_of_supply(avail_o - qty_needed, rate_o)
+                if not math.isinf(dos_o_after) and dos_o_after < DOS_WARNING:
+                    continue  # origin-protection: would drop origin below WARNING
+                cushion = 9999.0 if math.isinf(dos_o_after) else dos_o_after
+                cost_pp = freight_lookup.get((origin_dc, dest_dc), _DEFAULT_COST_PER_PALLET)
+                cost = transfer_cost(qty_needed, units_per_case, cost_pp)
+                if cushion > best_cushion or (cushion == best_cushion and cost < best_cost):
+                    best_origin = origin_dc
+                    best_cushion = cushion
+                    best_cost = cost
+
+            if best_origin is None:
+                rows.append({
+                    "sku": sku,
+                    "product_name": product_name,
+                    "dest_dc": dest_dc,
+                    "action": "WAIT",
+                    "origin_dc": None,
+                    "qty": None,
+                    "transfer_cost": None,
+                    "inbound_po_id": None,
+                    "inbound_eta": None,
+                    "inbound_qty": None,
+                    "days_to_stockout": round(days_to_stockout, 1),
+                    "penalty_avoided": 0.0,
+                    "net_saving": 0.0,
+                    "reason": "No DC has spare inventory; escalate to planner",
+                })
+                continue
+
+            net = penalty_avoided - best_cost
+            if net <= 0:
+                continue  # Not profitable; skip per spec
+
+            reason = f"Transfer {int(qty_needed)} units from {best_origin}"
+            if days_to_stockout < INTER_DC_TRANSIT_DAYS:
+                reason += (
+                    f"; NOTE: stockout in {round(days_to_stockout, 1)}d, "
+                    f"before {INTER_DC_TRANSIT_DAYS}d transit completes"
+                )
+
+            rows.append({
+                "sku": sku,
+                "product_name": product_name,
+                "dest_dc": dest_dc,
+                "action": "TRANSFER",
+                "origin_dc": best_origin,
+                "qty": int(qty_needed),
+                "transfer_cost": round(best_cost, 2),
+                "inbound_po_id": None,
+                "inbound_eta": None,
+                "inbound_qty": None,
+                "days_to_stockout": round(days_to_stockout, 1),
+                "penalty_avoided": round(penalty_avoided, 2),
+                "net_saving": round(net, 2),
+                "reason": reason,
+            })
 
     if not rows:
-        return pd.DataFrame(columns=[
-            "sku", "product_name", "origin_dc", "dest_dc",
-            "dos_origin", "dos_dest", "qty_to_transfer",
-            "transfer_cost", "chargeback_risk_avoided", "net_saving",
-        ])
-
-    return pd.DataFrame(rows).sort_values("net_saving", ascending=False).reset_index(drop=True)
+        return pd.DataFrame(columns=_OUTPUT_COLS)
+    return (
+        pd.DataFrame(rows)
+        .sort_values("net_saving", ascending=False)
+        .reset_index(drop=True)
+    )
