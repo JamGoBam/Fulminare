@@ -1,55 +1,60 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Implement `analytics/imbalance.py` (site-level imbalance detection) and wire up a minimal FastAPI backend with an `/api/inventory/imbalance` endpoint, so the frontend can start rendering the 3-DC imbalance table.
+Build the Next.js 14 frontend dashboard: 3-DC imbalance table (home page) consuming the live `/api/inventory/imbalance` endpoint, with status badges and shadcn/ui styling.
 
 ## LAST SESSION SUMMARY
-- Implemented `analytics/forecast.py` (`demand_rate`): trailing-window avg units/day, returns 0.0 on no sales
-- Implemented `analytics/metrics.py` (`days_of_supply`, `imbalance_score`, `transfer_cost`): all formulas mirror CLAUDE.md exactly, inf-safe, pallet rounding via `math.ceil`
-- 18/18 `pytest tests/test_imbalance.py -q` tests pass; imports verified clean
-- Commit: `[LOGIC] metrics: implement demand_rate, days_of_supply, imbalance_score, transfer_cost` (hash: TBD — fill in after handoff)
+- Implemented `analytics/imbalance.py`: `compute_imbalance_table` (demand_rate + DoS + imbalance_score per SKU×DC, status from CLAUDE.md thresholds) and `get_top_imbalanced` (top-n by score)
+- Implemented FastAPI: CORS middleware, lifespan startup auto-ingest, `GET /api/inventory/imbalance` endpoint in `web/api/routes/inventory.py`
+- End-to-end smoke test passed: `curl http://localhost:8000/api/inventory/imbalance` returns JSON with sku, product_name, dc, dos, imbalance_score, status
+- Commit: `[LOGIC] imbalance: implement detector, FastAPI /api/inventory/imbalance endpoint` (hash: TBD)
 
 ## NEXT TASK
-Implement `analytics/imbalance.py` + minimal FastAPI backend + `/api/inventory/imbalance` endpoint.
+Bootstrap Next.js 14 frontend and implement the dashboard home page (3-DC imbalance table).
 
-**Functions to implement in `analytics/imbalance.py`:**
+**Step 1 — Bootstrap (if `web/frontend/package.json` does not exist):**
+```bash
+cd web && pnpm create next-app frontend --typescript --tailwind --eslint --app --no-src-dir --import-alias "@/*"
+cd frontend && pnpm add @tanstack/react-query axios
+pnpm dlx shadcn@latest init -d   # defaults: New York style, zinc base
+pnpm dlx shadcn@latest add table badge card button
+```
 
-1. `compute_imbalance_table(inventory_df, sales_df, skus_df) -> pd.DataFrame`
-   - For each SKU across all 3 DCs, compute: `demand_rate` (from `analytics.forecast`), `days_of_supply` (from `analytics.metrics`), `imbalance_score` (from `analytics.metrics`)
-   - Output columns: `sku`, `product_name`, `dc`, `on_hand`, `available`, `demand_rate`, `dos`, `imbalance_score`, `status`
-   - `status` = `"critical"` if dos < 14, `"warning"` if dos < 30, `"ok"` otherwise (use CLAUDE.md thresholds)
-   - Row per SKU×DC combination
+**Step 2 — Implement `web/frontend/app/page.tsx` (dashboard home):**
 
-2. `get_top_imbalanced(imbalance_df, n=20) -> pd.DataFrame`
-   - Return top-n rows sorted by `imbalance_score` descending
+Layout:
+- Full-width header: "Prince of Peace — Inventory Dashboard" + today's date
+- Alert banner: "⚠ {N} SKUs with critical imbalance" (count where status=critical, hidden if 0)
+- `<ImbalanceTable>` component
 
-**FastAPI in `web/api/main.py` + `web/api/routes/inventory.py`:**
-
-- `GET /api/inventory/imbalance` — returns JSON list from `compute_imbalance_table` via `get_top_imbalanced`
-- Load data from parquet files in `data/processed/` (use `pd.read_parquet`)
-- App startup: check if parquets exist; if not, run `data.ingest.run(SEED, PROCESSED, DB_PATH)` to generate them
-- Include CORS middleware (origins=["*"] for local dev)
+`<ImbalanceTable>` component (`web/frontend/components/ImbalanceTable.tsx`):
+- Fetch from `http://localhost:8000/api/inventory/imbalance?top=20` via TanStack Query
+- Columns: SKU | Product | DC | Demand/day | Days of Supply | Imbalance Score | Status
+- Status cell: shadcn `<Badge>` — `destructive` for critical, `secondary` for warning, `outline` for ok
+- `dos = null` displays as "—"
+- Sort rows by `imbalance_score` descending (client-side, static — no interactive sort needed)
+- Loading state: skeleton rows; error state: red "Failed to load data"
 
 **Acceptance criteria:**
-- `pytest tests/test_imbalance.py -q` still all pass
-- `uvicorn web.api.main:app --port 8000` starts without error
-- `curl http://localhost:8000/api/inventory/imbalance` returns a JSON array with keys: `sku`, `product_name`, `dc`, `dos`, `imbalance_score`, `status`
-- `from analytics.imbalance import compute_imbalance_table, get_top_imbalanced` works without error
+- `pnpm --dir web/frontend dev` starts without TypeScript errors
+- Dashboard page renders the imbalance table with real data from the running API
+- Status badges show correct color for critical/warning/ok
+- `null` dos renders as "—" not "null"
 
 ## FILES IN PLAY
-- `analytics/imbalance.py` (implement: compute_imbalance_table, get_top_imbalanced)
-- `web/api/main.py` (FastAPI app + CORS + startup)
-- `web/api/routes/inventory.py` (GET /api/inventory/imbalance endpoint)
-- `tests/test_imbalance.py` (may add tests for imbalance table — optional, existing tests must stay green)
+- `web/frontend/` (bootstrap + implement)
+- `web/frontend/app/page.tsx` (home dashboard)
+- `web/frontend/components/ImbalanceTable.tsx` (new component)
 
 ## LOCKED / DO NOT TOUCH
 - `data/**` — ingest is green; do not touch
-- `analytics/metrics.py`, `analytics/forecast.py` — metrics are locked
-- `analytics/alerts.py`, `analytics/transfer.py`, `analytics/chargeback.py` — Block 7 work
-- `web/frontend/**` — not started
+- `analytics/**` — metrics + imbalance locked
+- `web/api/**` — backend is working; do not touch
+- `tests/**` — all tests passing; do not touch
 
 ## BLOCKERS
 - Real POP CSVs still not received. No blocker — synthetic seed data is sufficient.
+- API must be running on port 8000 for the frontend to fetch data during dev.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
