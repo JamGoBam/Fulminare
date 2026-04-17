@@ -1,56 +1,52 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Final demo polish — runtime verification + rehearsal dry-run.
+Final demo polish — runtime verification complete, scenario updated for real data.
 
 ## LAST SESSION SUMMARY
-- Fixed `chargebacks/page.tsx`: `/api/chargebacks/summary` returns a **list** of `{cause_code, channel, dc, total_amount, count}` records (not a single object); now reduces the array to compute totals — `totalAmount` and `totalCount`
-- Reviewed `demo/scenario.md`: all 5 steps have corresponding UI features; scenario numbers ($900 net save, $970 SHORT_SHIP, $10,800/yr) come from seed data and need on-screen verification
-- Commit: `[FRONTEND] chargebacks: fix summary field types (list→reduce)`
+- Booted API (:8000) + frontend (:3000), ran `data.ingest` — real POP data loaded (73 SKUs, 2 Critical, 1 Warning, $13,680/yr savings)
+- `demo/scenario.md` rewritten for real data: hero SKU is now **J-72402** (Totole Chicken Bouillon 2.2 lbs), transfer is **72 units DC_WEST → DC_EAST / $420 freight / $660 net save**, chargeback focus is **MISSED_WINDOW DC_EAST $910K / DC_WEST $1.8M**
+- All 8 UI checks pass; `pytest -q` passes **29/29**; no console errors
 
 ## NEXT TASK
-Boot the app in a **Windows terminal** (PowerShell/CMD), verify UI, run tests, do rehearsal walkthrough.
+Rehearsal dry-run — do a live walkthrough of the demo, speaking aloud, ≤8 minutes.
 
-**1 — Boot and verify (Windows terminal only — not Git Bash):**
+**Pre-flight checklist (before walking):**
 ```bash
-bash scripts/start.sh
-# waits for API :8000 and frontend :3000
+# Terminal 1 (PowerShell/CMD — use venv Python):
+.venv\Scripts\python.exe -m data.ingest          # refresh processed data
+.venv\Scripts\uvicorn.exe web.api.main:app --port 8000 --reload
+
+# Terminal 2:
+pnpm --dir web/frontend dev
 ```
-Check each item:
-- [ ] Home: stat bar shows "N SKUs tracked | 1 Critical | 1 Warning | $10,800 est. savings / year"
-- [ ] Home: green savings banner appears below stat bar
-- [ ] Home: scroll down — SKU-004 is visible in the imbalance table with Critical badge
-- [ ] Home: Transfer Recommendations card shows "108 units DC_CENTRAL → DC_EAST: $600 freight. Net save $900."
-- [ ] Chargebacks: exposure line appears — "Total chargeback exposure (excl. TPR): $X across N incidents"
-- [ ] Chargebacks: SHORT_SHIP row shows DC_EAST ≈ $970, DC_WEST ≈ $680
-- [ ] Click a SKU in the imbalance table → `/sku/[sku]` drill-down loads
-- [ ] `pytest -q` passes 18/18
 
-**2 — If any scenario number mismatches:**
-Run `python -m analytics.pipeline` to re-derive processed data, then reload. If numbers still don't match `demo/scenario.md`, check `data/seed/` CSV values against the expected figures — do NOT edit analytics or seed data without understanding the root cause first.
-
-**3 — Rehearsal walkthrough:**
-Follow `demo/scenario.md` step-by-step, speaking aloud. ≤8 minutes total. Note any awkward moments.
+**Walkthrough — follow `demo/scenario.md` verbatim:**
+1. Dashboard opens — call out stat bar + banner numbers ($13,680 / yr)
+2. Imbalance table — scroll to J-72402, call out DC_EAST 12 days / Critical badge
+3. Transfer card — read the DC_WEST → DC_EAST row verbatim ($420 freight, $660 net save)
+4. Chargeback Analysis — MISSED_WINDOW row: DC_EAST $910K, DC_WEST $1.8M
+5. Back to dashboard — close with the $700K+ scale story
 
 **Acceptance criteria:**
-- All 8 runtime checks above pass
-- `pytest -q` 18/18
-- Rehearsal walkthrough completes in ≤8 min without errors
+- Walkthrough completes in ≤8 min without errors
+- All numbers on-screen match `demo/scenario.md`
+- No chart load failures; SKU link to `/sku/J-72402` works
 
 ## FILES IN PLAY
-- None expected — this is a verification-only task. If number mismatches are found, only `data/seed/*.csv` may need updating (unlock individually if needed).
-- `demo/scenario.md` — read-only reference
+- `demo/scenario.md` — read-only reference during rehearsal
 
 ## LOCKED / DO NOT TOUCH
 - `analytics/**` — all locked
 - `web/api/**` — all locked
-- `web/frontend/**` — all locked (code is done)
+- `web/frontend/**` — all locked
 - `tests/**` — must stay green
-- `data/seed/**` — locked unless a specific number mismatch is root-caused here
+- `data/seed/**` — locked
 - `scripts/**` — locked
 
 ## BLOCKERS
-- None — but boot requires a Windows terminal (PowerShell/CMD). Git Bash cannot run pnpm or Python on this machine.
+- Boot requires **PowerShell/CMD** (not Git Bash) for `pnpm` and `.venv\Scripts\python.exe` on this machine.
+- `analytics/pipeline.py` raises `NotImplementedError` — not needed; skip `python -m analytics.pipeline` and use `python -m data.ingest` instead.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
