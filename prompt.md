@@ -1,67 +1,55 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Build the demo scenario walkthrough and "Save $X annually" projection banner — the final two judging-criterion features before polish and rehearsal.
+Polish and demo prep: wire up the full stack for a clean cold-start, add a SKU drill-down route, and run a complete end-to-end rehearsal pass.
 
 ## LAST SESSION SUMMARY
-- Implemented `analytics/transfer.py` (`transfer_recommendations`): surplus→deficit pairs, freight lookup, $15/unit chargeback proxy, net_saving filter; correctly generates DC_CENTRAL→DC_EAST for SKU-004 ($900 net saving)
-- Implemented `GET /api/recommendations/transfers`, mounted router; `TransferCard` component on home page with green net saving column
-- Verified in browser: "Transfer Recommendations" card renders SKU-004/Reishi row; 18/18 tests still green
-- Commit: `[LOGIC+FRONTEND] transfer: recommendation engine, API endpoint, TransferCard` (hash: TBD)
+- Implemented `GET /api/summary` (total_skus, critical_count, warning_count, annual_savings_estimate=$10,800)
+- Built `SavingsBanner` component: green banner showing "$10,800 / year" above imbalance table; hidden when 0
+- Wrote `demo/scenario.md`: 5-step SKU-004 walkthrough with exact numbers ($600 freight, $1,500 avoided, $900 net, $10,800 annual)
+- Commit: `[FRONTEND+DEMO] savings banner, /api/summary, scenario walkthrough` (hash: TBD)
 
 ## NEXT TASK
-Add the "Save $X annually" projection banner to the dashboard and finish the `demo/scenario.md` walkthrough script.
+Cold-start reliability + SKU drill-down page.
 
-**1 — Annual savings banner (`web/frontend/components/SavingsBanner.tsx` + `app/page.tsx`):**
+**1 — Cold-start reliability (`scripts/start.sh`):**
+Write a shell script that:
+- Runs `PYTHONPATH=. python3 -m data.ingest --seed` if `data/processed/inventory.parquet` is missing
+- Starts `PYTHONPATH=. uvicorn web.api.main:app --port 8000 &`
+- Starts `npx -y pnpm --dir web/frontend dev &`
+- Prints "POP dashboard ready: http://localhost:3000"
+- Make executable (`chmod +x`)
 
-- Fetch `GET /api/recommendations/transfers`
-- Sum all `net_saving` values, annualize: `annual = sum_net_saving * 12` (monthly proxy for demo)
-- Show a green banner above the imbalance card (below the header):
-  `"Proactive transfers could save POP an estimated $X,XXX / year in chargeback penalties"`
-- Hide if total = 0 or still loading
-- Style: `bg-green-50 border border-green-200 text-green-800` with a dollar sign icon
-
-**2 — Add `GET /api/summary` endpoint (`web/api/routes/inventory.py`):**
-
-- Returns a single JSON object:
-  ```json
-  { "total_skus": N, "critical_count": N, "warning_count": N, "annual_savings_estimate": X }
-  ```
-- `critical_count` / `warning_count` from imbalance table (status field)
-- `annual_savings_estimate` = sum of all transfer `net_saving` × 12
-
-**3 — Update `demo/scenario.md`:**
-
-- Write a 5-step walkthrough script for the live demo using SKU-004 (Reishi Mushroom Capsules):
-  1. Open dashboard → alert banner + critical row visible
-  2. Point to imbalance score 10.0 on SKU-004/DC_EAST
-  3. Point to Transfer Recommendation card: DC_CENTRAL → DC_EAST, 108 units, $900 net saving
-  4. Navigate to /chargebacks → SHORT_SHIP is top cause at DC_EAST ($970)
-  5. Point to annual savings banner: "POP could avoid ~$X/year with proactive transfers"
-- Keep it terse — bullet points, no paragraphs
+**2 — SKU drill-down page (`web/frontend/app/sku/[sku]/page.tsx`):**
+- Route: `http://localhost:3000/sku/SKU-004`
+- Link from imbalance table rows: wrap the SKU cell in `<Link href={/sku/${row.sku}}>` (update `ImbalanceTable.tsx`)
+- Page shows:
+  - Header: product name + SKU
+  - 3 stat cards side by side: DC_EAST DoS | DC_WEST DoS | DC_CENTRAL DoS (show "—" for null)
+  - Transfer recommendation for this SKU only (filter TransferCard data client-side by sku param)
+- Fetch data from existing endpoints: `/api/inventory/imbalance` (filter by sku) + `/api/recommendations/transfers` (filter by sku)
 
 **Acceptance criteria:**
-- Banner appears on home page showing a dollar amount > 0
-- `GET /api/summary` returns valid JSON with all 4 keys
-- `demo/scenario.md` has 5 steps covering SKU-004 walkthrough
-- `pnpm --dir web/frontend dev` starts clean (no TS errors)
+- `bash scripts/start.sh` boots both servers from a clean state
+- `http://localhost:3000/sku/SKU-004` renders with 3 DoS stat cards and transfer rec row
+- Clicking an SKU in the imbalance table navigates to the drill-down
+- `pnpm --dir web/frontend dev` clean (no TS errors)
 - `pytest tests/test_imbalance.py -q` still 18/18
 
 ## FILES IN PLAY
-- `web/frontend/components/SavingsBanner.tsx` (new)
-- `web/frontend/app/page.tsx` (add SavingsBanner above imbalance card)
-- `web/api/routes/inventory.py` (add GET /api/summary)
-- `demo/scenario.md` (write walkthrough)
+- `scripts/start.sh` (new)
+- `web/frontend/app/sku/[sku]/page.tsx` (new)
+- `web/frontend/components/ImbalanceTable.tsx` (add link on SKU cell)
 
 ## LOCKED / DO NOT TOUCH
 - `analytics/**` — all locked
-- `web/api/routes/chargebacks.py`, `web/api/routes/recommendations.py` — locked
-- `web/frontend/components/ImbalanceTable.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx` — locked
+- `web/api/**` — all locked
+- `web/frontend/components/SavingsBanner.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx` — locked
 - `tests/**` — must stay green
 - `data/seed/**` — locked
 
 ## BLOCKERS
-- None. All data is in place.
+- None.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
