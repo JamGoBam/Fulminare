@@ -29,7 +29,8 @@ Prince of Peace (POP) distributes ~800 active SKUs across 3 U.S. distribution ce
 - **Python 3.11 + pandas** — fastest CSV-to-insight path; team knows it. *Technology*.
 - **DuckDB** — SQL over parquet/CSV with zero server; pandas interop; fast aggregations for chargeback heatmaps. *Technology*.
 - **FastAPI + uvicorn + pydantic v2** — async, auto OpenAPI, zero boilerplate. *Technology*.
-- **Next.js 14 App Router + TypeScript + Tailwind + shadcn/ui** — shadcn aesthetic ships the Design score out of the box. *Design, Presentation*.
+- **Anthropic Python SDK (`anthropic>=0.40`)** — powers the in-app assistant (`/api/chat`) via tool-use over existing analytics. `ANTHROPIC_API_KEY` required at runtime (see Commands). *Inspiration, Design*.
+- **Next.js 16.2.4 App Router + TypeScript + Tailwind + shadcn/ui** — shadcn aesthetic ships the Design score out of the box. **Next.js 16 has breaking changes vs. training data** — read `web/frontend/node_modules/next/dist/docs/` before writing frontend code (see `web/frontend/AGENTS.md`). *Design, Presentation*.
 - **Recharts** — line/bar/heatmap with shadcn theming. *Design*.
 - **TanStack Query** — server state only; no Zustand. *Technology*.
 - **uv / pnpm / ruff** — fast tooling, low install time.
@@ -39,9 +40,12 @@ Prince of Peace (POP) distributes ~800 active SKUs across 3 U.S. distribution ce
 ```
 /data          ingestion, schemas, constants, seed CSVs, parquet outputs, duckdb
 /analytics     metrics, imbalance, transfer, chargeback, alerts, forecast, pipeline
-/web/api       FastAPI backend (routes split: inventory, chargebacks, recommendations)
-/web/frontend  Next.js 14 app (dashboard home, /sku/[sku], /chargebacks)
-/shared        cross-cutting docs (metrics.md)
+/web/api       FastAPI backend (routes: inventory, chargebacks, recommendations, chat)
+               chat_prompts.py (system prompt + tool schemas), chat_tools.py (tool impls)
+/web/frontend  Next.js 16 app (dashboard home, /sku/[sku], /chargebacks)
+               lib/api.ts (centralized API_BASE + typed fetchers)
+               components/Chatbot.tsx (floating Sheet), MetricTooltip.tsx, ActionQueue.tsx
+/shared        cross-cutting docs (metrics.md, roadmap.md — see roadmap for open phases)
 /demo          scenario.md (SKU walkthrough script), rehearsal.md, assets/, deck.pdf
 /scripts       handoff.sh (commit + push + print resume hint — see handoff protocol above)
 /tests         pytest
@@ -75,6 +79,9 @@ python -m data.ingest
 
 # analytics pipeline (writes derived tables to /data/processed)
 python -m analytics.pipeline
+
+# chatbot requires an Anthropic API key in env (never commit .env*)
+export ANTHROPIC_API_KEY=sk-ant-...
 
 # backend (:8000)
 uvicorn web.api.main:app --reload --port 8000
@@ -116,9 +123,9 @@ Anything not mapping to at least one criterion: **cut it.**
 - Python snake_case, React PascalCase, route paths kebab-case.
 - Commits: `[DATA|LOGIC|FRONTEND|DEMO|META] <area>: <imperative>` — e.g. `[LOGIC] transfer: fix DoS infinity edge case`.
 - Trunk-based on `main`. Commit after every green block. No long-lived branches.
-- `.gitignore`: `/data/raw/**`, `.venv/`, `node_modules/`, `.next/`, `/data/processed/*.parquet`, `/data/processed/pop.duckdb`.
+- `.gitignore`: `/data/raw/**`, `.venv/`, `node_modules/`, `.next/`, `/data/processed/*.parquet`, `/data/processed/pop.duckdb`, `.env`, `.env.local`, `web/frontend/.env*.local`.
 - **Committed**: `/data/seed/*.csv` (20 rows each, synthetic) so CI and cold starts work.
-- No secrets, no `.env` (not needed for this scope).
+- `ANTHROPIC_API_KEY` lives in environment only — never committed. No other secrets needed.
 
 ## Do not re-derive (locked assumptions)
 
@@ -132,3 +139,11 @@ Anything not mapping to at least one criterion: **cut it.**
 8. Demo SKU is selected at the end of Day 1 Block 8 from loaded data; once chosen, **never change**.
 9. The company in all copy is "Prince of Peace" or "POP" — do not abbreviate as "PoP" (docx used both; we pick "POP").
 10. **Before/after baseline** = the current manual process (per POP PDF: reactive, post-audit 8–12 months lag). Do not invent alternative baselines.
+11. **`delay_flag` shift** = `expected_arrival + 7 days` when truthy. Used by the transfer-vs-wait engine to decide whether an inbound PO will actually arrive before stockout. Do not model a per-SKU delay distribution.
+12. **Dominant customer/channel for penalty modeling** = last 90 days of sales for that (sku, dest_dc). The chargeback `penalty_rate` function falls back (customer+channel+dc) → channel+dc → dc → global when <3 samples. Do not re-model.
+13. **Chatbot is read-only in v1.** Tools only read parquet/duckdb; no mutation. If an action is needed, the LLM surfaces it in text — the UI does not let it execute.
+14. **Model for `/api/chat`** = `claude-sonnet-4-6` (fast streaming for live demo). Cache the system prompt with `cache_control: {"type": "ephemeral"}`.
+
+## Open roadmap
+
+See `shared/roadmap.md` for the full Phase 0 → 5 plan (Transfer-vs-Wait engine, API expansion, AI chatbot, accessibility layer). `prompt.md` always carries the current NEXT TASK — start there.
