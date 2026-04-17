@@ -3,11 +3,9 @@
   "configurations": [
     {
       "name": "frontend",
-      "runtimeExecutable": "C:\\Program Files\\nodejs\\node.exe",
-      "runtimeArgs": ["C:\\Users\\justi\\Documents\\GitHub\\Fulminare\\.claude\\worktrees\\goofy-torvalds-1fcaa7\\web\\frontend\\node_modules\\next\\dist\\bin\\next", "dev", "--turbopack"],
-      "cwd": "C:\\Users\\justi\\Documents\\GitHub\\Fulminare\\.claude\\worktrees\\goofy-torvalds-1fcaa7\\web\\frontend",
-      "port": 3000,
-      "autoPort": false
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["--dir", "web/frontend", "dev"],
+      "port": 3000
     }
   ]
 }
