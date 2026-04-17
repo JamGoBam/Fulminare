@@ -1,4 +1,5 @@
 import { ImbalanceTable } from "@/components/ImbalanceTable"
+import { TransferCard } from "@/components/TransferCard"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import Link from "next/link"
 
@@ -34,6 +35,8 @@ export default function DashboardPage() {
           <ImbalanceTable />
         </CardContent>
       </Card>
+
+      <TransferCard />
     </div>
   )
 }

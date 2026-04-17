@@ -1,65 +1,67 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Build the transfer-vs-wait recommendation card and the SKU drill-down page, then wire up the "Save $X annually" banner on the dashboard home.
+Build the demo scenario walkthrough and "Save $X annually" projection banner — the final two judging-criterion features before polish and rehearsal.
 
 ## LAST SESSION SUMMARY
-- Implemented `analytics/chargeback.py` (`chargeback_summary`): groups by cause×channel×dc, TPR filtered out
-- Implemented `GET /api/chargebacks/summary` and mounted in FastAPI; `GET /api/inventory/imbalance` still working
-- Built `/chargebacks` page + `ChargebackHeatmap` component: pivot table cause×DC, empty cells for zero, totals row, `← Dashboard` back nav; verified in browser with real data
-- Commit: `[LOGIC+FRONTEND] chargebacks: heatmap endpoint + page` (hash: TBD)
+- Implemented `analytics/transfer.py` (`transfer_recommendations`): surplus→deficit pairs, freight lookup, $15/unit chargeback proxy, net_saving filter; correctly generates DC_CENTRAL→DC_EAST for SKU-004 ($900 net saving)
+- Implemented `GET /api/recommendations/transfers`, mounted router; `TransferCard` component on home page with green net saving column
+- Verified in browser: "Transfer Recommendations" card renders SKU-004/Reishi row; 18/18 tests still green
+- Commit: `[LOGIC+FRONTEND] transfer: recommendation engine, API endpoint, TransferCard` (hash: TBD)
 
 ## NEXT TASK
-Implement the transfer recommendation engine + API endpoint, then surface it as a card on the dashboard.
+Add the "Save $X annually" projection banner to the dashboard and finish the `demo/scenario.md` walkthrough script.
 
-**Backend — `analytics/transfer.py` + `web/api/routes/recommendations.py`:**
+**1 — Annual savings banner (`web/frontend/components/SavingsBanner.tsx` + `app/page.tsx`):**
 
-1. `transfer_recommendations(inventory_df, sales_df, skus_df, freight_df) -> pd.DataFrame`
-   - For each SKU, find DCs with critical/warning DoS (< 30) AND another DC with surplus (DoS > 90)
-   - For each such pair, compute:
-     - `qty_to_transfer`: bring dest DC to 30-day DoS — `max(0, (30 * rate_dest) - available_dest)`, rounded up to nearest case
-     - `transfer_cost`: use `analytics.metrics.transfer_cost` (units_per_case from skus_df, freight from freight_df)
-     - `chargeback_risk_avoided`: estimated as `(30 - dos_dest) * rate_dest * 15.0` (flat $15/unit penalty proxy for demo — no real chargeback model yet)
-     - `net_saving`: `chargeback_risk_avoided - transfer_cost`
-   - Output columns: `sku`, `product_name`, `origin_dc`, `dest_dc`, `dos_origin`, `dos_dest`, `qty_to_transfer`, `transfer_cost`, `chargeback_risk_avoided`, `net_saving`
-   - Only include rows where `net_saving > 0` and `qty_to_transfer > 0`
-   - Sort by `net_saving` descending
+- Fetch `GET /api/recommendations/transfers`
+- Sum all `net_saving` values, annualize: `annual = sum_net_saving * 12` (monthly proxy for demo)
+- Show a green banner above the imbalance card (below the header):
+  `"Proactive transfers could save POP an estimated $X,XXX / year in chargeback penalties"`
+- Hide if total = 0 or still loading
+- Style: `bg-green-50 border border-green-200 text-green-800` with a dollar sign icon
 
-2. `GET /api/recommendations/transfers` — returns JSON list from `transfer_recommendations`
-   - Mount router in `web/api/main.py` under `/api`
+**2 — Add `GET /api/summary` endpoint (`web/api/routes/inventory.py`):**
 
-**Frontend — `web/frontend/components/TransferCard.tsx` + update `app/page.tsx`:**
+- Returns a single JSON object:
+  ```json
+  { "total_skus": N, "critical_count": N, "warning_count": N, "annual_savings_estimate": X }
+  ```
+- `critical_count` / `warning_count` from imbalance table (status field)
+- `annual_savings_estimate` = sum of all transfer `net_saving` × 12
 
-- `<TransferCard>` fetches `GET /api/recommendations/transfers`
-- Renders a Card below the imbalance table on the home page
-- Card title: "Transfer Recommendations"
-- For each recommendation row show: SKU | Product | Origin DC → Dest DC | Qty | Est. Saving ($)
-- Highlight `net_saving` in green (`text-green-600`)
-- Empty state: "No transfers recommended — inventory is balanced."
+**3 — Update `demo/scenario.md`:**
+
+- Write a 5-step walkthrough script for the live demo using SKU-004 (Reishi Mushroom Capsules):
+  1. Open dashboard → alert banner + critical row visible
+  2. Point to imbalance score 10.0 on SKU-004/DC_EAST
+  3. Point to Transfer Recommendation card: DC_CENTRAL → DC_EAST, 108 units, $900 net saving
+  4. Navigate to /chargebacks → SHORT_SHIP is top cause at DC_EAST ($970)
+  5. Point to annual savings banner: "POP could avoid ~$X/year with proactive transfers"
+- Keep it terse — bullet points, no paragraphs
 
 **Acceptance criteria:**
-- `GET /api/recommendations/transfers` returns JSON (may be empty array if no profitable transfers)
-- With current seed data (SKU-004 DC_EAST critical, DC_CENTRAL surplus), at least 1 recommendation appears
-- Card renders on home page with green net saving amount
+- Banner appears on home page showing a dollar amount > 0
+- `GET /api/summary` returns valid JSON with all 4 keys
+- `demo/scenario.md` has 5 steps covering SKU-004 walkthrough
 - `pnpm --dir web/frontend dev` starts clean (no TS errors)
-- `pytest tests/test_imbalance.py -q` still 18/18 green
+- `pytest tests/test_imbalance.py -q` still 18/18
 
 ## FILES IN PLAY
-- `analytics/transfer.py` (implement: transfer_recommendations)
-- `web/api/routes/recommendations.py` (implement: GET /api/recommendations/transfers)
-- `web/api/main.py` (mount recommendations router)
-- `web/frontend/components/TransferCard.tsx` (new component)
-- `web/frontend/app/page.tsx` (add TransferCard below imbalance table)
+- `web/frontend/components/SavingsBanner.tsx` (new)
+- `web/frontend/app/page.tsx` (add SavingsBanner above imbalance card)
+- `web/api/routes/inventory.py` (add GET /api/summary)
+- `demo/scenario.md` (write walkthrough)
 
 ## LOCKED / DO NOT TOUCH
-- `analytics/metrics.py`, `analytics/forecast.py`, `analytics/imbalance.py`, `analytics/chargeback.py` — locked
-- `web/api/routes/inventory.py`, `web/api/routes/chargebacks.py` — locked
-- `web/frontend/app/chargebacks/**`, `web/frontend/components/ChargebackHeatmap.tsx` — locked
-- `tests/test_imbalance.py` — must stay green
+- `analytics/**` — all locked
+- `web/api/routes/chargebacks.py`, `web/api/routes/recommendations.py` — locked
+- `web/frontend/components/ImbalanceTable.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx` — locked
+- `tests/**` — must stay green
 - `data/seed/**` — locked
 
 ## BLOCKERS
-- Real freight rates not in seed data. Use `freight.csv` (origin/destination/cost_per_pallet). If a pair is missing, default cost_per_pallet = 300.0.
+- None. All data is in place.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
