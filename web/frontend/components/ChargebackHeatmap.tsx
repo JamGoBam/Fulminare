@@ -12,6 +12,7 @@ import {
   TableRow,
   TableFooter,
 } from "@/components/ui/table"
+import { MetricTooltip } from "@/components/MetricTooltip"
 import { API_BASE } from "@/lib/api"
 
 const API_URL = `${API_BASE}/api/chargebacks/summary`
@@ -85,7 +86,9 @@ export function ChargebackHeatmap() {
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-40">Cause Code</TableHead>
+          <TableHead className="w-40">
+            <MetricTooltip metric="cause_code">Cause Code</MetricTooltip>
+          </TableHead>
           {DCS.map((dc) => (
             <TableHead key={dc} className="text-right">
               {dc}

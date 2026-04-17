@@ -7,10 +7,10 @@ import { API_BASE } from "@/lib/api"
 const API_URL = `${API_BASE}/api/summary`
 
 interface Summary {
-  total_skus: number
-  critical_count: number
-  warning_count: number
-  annual_savings_estimate: number
+  manual_annual_penalty: number
+  system_avoidable_annual: number
+  delta: number
+  pct_reduction: number
 }
 
 export function SavingsBanner() {
@@ -20,17 +20,19 @@ export function SavingsBanner() {
     refetchInterval: 60_000,
   })
 
-  if (!data || data.annual_savings_estimate <= 0) return null
+  if (!data || data.manual_annual_penalty <= 0) return null
 
-  const fmt = (n: number) =>
-    `$${Math.round(n).toLocaleString("en-US")}`
+  const fmt = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`
 
   return (
     <div className="flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 dark:border-green-800 dark:bg-green-950/30 dark:text-green-300">
-      <span className="text-lg">$</span>
+      <span className="text-lg shrink-0">$</span>
       <span>
-        Proactive transfers could save POP an estimated{" "}
-        <strong>{fmt(data.annual_savings_estimate)} / year</strong> in chargeback penalties.
+        Manual process:{" "}
+        <strong>{fmt(data.manual_annual_penalty)} lost annually</strong>.{" "}
+        POP Assistant:{" "}
+        <strong>{fmt(data.system_avoidable_annual)} avoidable</strong>.{" "}
+        <strong>{data.pct_reduction}% reduction</strong> in chargeback exposure.
       </span>
     </div>
   )

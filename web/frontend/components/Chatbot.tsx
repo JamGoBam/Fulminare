@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useCallback, useRef, useState } from "react"
+import React, { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname, useParams } from "next/navigation"
 import { MessageSquare, Send } from "lucide-react"
 import { Button } from "@/components/ui/button"
@@ -49,6 +49,20 @@ export function Chatbot() {
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
+  }, [])
+
+  // Stable ref so the event listener never captures a stale sendMessage closure
+  const sendMessageRef = useRef<(text: string) => Promise<void>>(async () => {})
+
+  // Open chatbot with a pre-filled message dispatched from other components
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { message } = (e as CustomEvent<{ message: string }>).detail
+      setOpen(true)
+      sendMessageRef.current(message)
+    }
+    window.addEventListener("chat:prefill", handler)
+    return () => window.removeEventListener("chat:prefill", handler)
   }, [])
 
   const sendMessage = useCallback(
@@ -164,6 +178,9 @@ export function Chatbot() {
     },
     [messages, pathname, sku, streaming, scrollToBottom]
   )
+
+  // Keep ref in sync so the prefill event handler always calls the latest version
+  sendMessageRef.current = sendMessage
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()

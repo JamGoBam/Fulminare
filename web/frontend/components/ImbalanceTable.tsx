@@ -12,6 +12,7 @@ import {
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
+import { MetricTooltip } from "@/components/MetricTooltip"
 import { API_BASE } from "@/lib/api"
 
 const API_URL = `${API_BASE}/api/inventory/imbalance?top=20`
@@ -79,9 +80,15 @@ export function ImbalanceTable() {
           <TableHead>SKU</TableHead>
           <TableHead>Product</TableHead>
           <TableHead>DC</TableHead>
-          <TableHead className="text-right">Demand / day</TableHead>
-          <TableHead className="text-right">Days of Supply</TableHead>
-          <TableHead className="text-right">Imbalance Score</TableHead>
+          <TableHead className="text-right">
+            <MetricTooltip metric="demand_rate">Demand / day</MetricTooltip>
+          </TableHead>
+          <TableHead className="text-right">
+            <MetricTooltip metric="dos">Days of Supply</MetricTooltip>
+          </TableHead>
+          <TableHead className="text-right">
+            <MetricTooltip metric="imbalance">Imbalance Score</MetricTooltip>
+          </TableHead>
           <TableHead>Status</TableHead>
         </TableRow>
       </TableHeader>
