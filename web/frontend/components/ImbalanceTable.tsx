@@ -11,6 +11,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
+import Link from "next/link"
 
 const API_URL = "http://localhost:8000/api/inventory/imbalance?top=20"
 
@@ -94,7 +95,11 @@ export function ImbalanceTable() {
         )}
         {rows.map((row, i) => (
           <TableRow key={`${row.sku}-${row.dc}-${i}`}>
-            <TableCell className="font-mono text-xs">{row.sku}</TableCell>
+            <TableCell className="font-mono text-xs">
+              <Link href={`/sku/${row.sku}`} className="hover:underline text-foreground">
+                {row.sku}
+              </Link>
+            </TableCell>
             <TableCell className="max-w-48 truncate">{row.product_name}</TableCell>
             <TableCell className="font-mono text-xs">{row.dc}</TableCell>
             <TableCell className="text-right tabular-nums">

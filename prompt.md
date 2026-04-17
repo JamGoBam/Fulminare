@@ -1,52 +1,59 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Polish and demo prep: wire up the full stack for a clean cold-start, add a SKU drill-down route, and run a complete end-to-end rehearsal pass.
+Final demo polish: "Save $X" banner on the chargeback page, README quick-start, and rehearsal dry-run verification.
 
 ## LAST SESSION SUMMARY
-- Implemented `GET /api/summary` (total_skus, critical_count, warning_count, annual_savings_estimate=$10,800)
-- Built `SavingsBanner` component: green banner showing "$10,800 / year" above imbalance table; hidden when 0
-- Wrote `demo/scenario.md`: 5-step SKU-004 walkthrough with exact numbers ($600 freight, $1,500 avoided, $900 net, $10,800 annual)
-- Commit: `[FRONTEND+DEMO] savings banner, /api/summary, scenario walkthrough` (hash: TBD)
+- Wrote `scripts/start.sh`: auto-ingest if parquets missing, boot API + frontend, wait for healthz, print ready URL; executable
+- Built `/sku/[sku]` drill-down page: 3 DoS stat cards (DC_EAST=10/Critical, DC_WEST=20/Warning, DC_CENTRAL=—/OK) + transfer table with green $900 net saving; fully verified in browser
+- Added `<Link href={/sku/${sku}}>` on SKU cell in ImbalanceTable — clicks navigate to drill-down
+- Commit: `[FRONTEND] cold-start script, SKU drill-down page, table SKU links` (hash: TBD)
 
 ## NEXT TASK
-Cold-start reliability + SKU drill-down page.
+Final polish pass before rehearsal.
 
-**1 — Cold-start reliability (`scripts/start.sh`):**
-Write a shell script that:
-- Runs `PYTHONPATH=. python3 -m data.ingest --seed` if `data/processed/inventory.parquet` is missing
-- Starts `PYTHONPATH=. uvicorn web.api.main:app --port 8000 &`
-- Starts `npx -y pnpm --dir web/frontend dev &`
-- Prints "POP dashboard ready: http://localhost:3000"
-- Make executable (`chmod +x`)
+**1 — Summary stat bar on home page (`web/frontend/app/page.tsx`):**
+Fetch `/api/summary` (already exists). Add a horizontal stat bar between the header and the savings banner:
+```
+4 SKUs tracked   |   1 Critical   |   1 Warning   |   $10,800 est. savings / year
+```
+Use `<SavingsBanner>` data — just add a top stat row using the same `useQuery(["summary"])`. Put it in `SavingsBanner.tsx` (already fetches this data) or a new `StatsBar.tsx` — whichever is cleaner.
 
-**2 — SKU drill-down page (`web/frontend/app/sku/[sku]/page.tsx`):**
-- Route: `http://localhost:3000/sku/SKU-004`
-- Link from imbalance table rows: wrap the SKU cell in `<Link href={/sku/${row.sku}}>` (update `ImbalanceTable.tsx`)
-- Page shows:
-  - Header: product name + SKU
-  - 3 stat cards side by side: DC_EAST DoS | DC_WEST DoS | DC_CENTRAL DoS (show "—" for null)
-  - Transfer recommendation for this SKU only (filter TransferCard data client-side by sku param)
-- Fetch data from existing endpoints: `/api/inventory/imbalance` (filter by sku) + `/api/recommendations/transfers` (filter by sku)
+**2 — Chargebacks page: total exposure callout (`web/frontend/app/chargebacks/page.tsx`):**
+Below the heatmap card, add a plain text line:
+`"Total chargeback exposure (excl. TPR): $X,XXX across N incidents"`
+Compute from the `/api/chargebacks/summary` response on the client.
+
+**3 — `README.md` quick-start section:**
+Append a `## Quick Start` section to the existing `README.md`:
+```
+## Quick Start
+bash scripts/start.sh          # boots API (:8000) + frontend (:3000)
+open http://localhost:3000     # dashboard
+pytest -q                      # 18 tests
+```
+No other changes to README.
 
 **Acceptance criteria:**
-- `bash scripts/start.sh` boots both servers from a clean state
-- `http://localhost:3000/sku/SKU-004` renders with 3 DoS stat cards and transfer rec row
-- Clicking an SKU in the imbalance table navigates to the drill-down
-- `pnpm --dir web/frontend dev` clean (no TS errors)
+- Home page shows the 4-stat bar with live data
+- Chargebacks page shows total exposure line below the heatmap
+- `README.md` has Quick Start section
+- `pnpm --dir web/frontend dev` starts clean (no TS errors)
 - `pytest tests/test_imbalance.py -q` still 18/18
 
 ## FILES IN PLAY
-- `scripts/start.sh` (new)
-- `web/frontend/app/sku/[sku]/page.tsx` (new)
-- `web/frontend/components/ImbalanceTable.tsx` (add link on SKU cell)
+- `web/frontend/components/SavingsBanner.tsx` (extend with stat bar, or create `StatsBar.tsx`)
+- `web/frontend/app/page.tsx` (add StatsBar/stat row)
+- `web/frontend/app/chargebacks/page.tsx` (add total exposure line)
+- `README.md` (append Quick Start)
 
 ## LOCKED / DO NOT TOUCH
 - `analytics/**` — all locked
 - `web/api/**` — all locked
-- `web/frontend/components/SavingsBanner.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx` — locked
+- `web/frontend/app/sku/**`, `web/frontend/components/ImbalanceTable.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx` — locked
 - `tests/**` — must stay green
 - `data/seed/**` — locked
+- `scripts/start.sh`, `scripts/handoff.sh` — locked
 
 ## BLOCKERS
 - None.
