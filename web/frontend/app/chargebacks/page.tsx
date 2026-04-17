@@ -8,9 +8,12 @@ import Link from "next/link"
 
 const API_BASE = "http://localhost:8000"
 
-interface ChargebackSummary {
+interface ChargebackRecord {
+  cause_code: string
+  channel: string
+  dc: string
   total_amount: number
-  incident_count: number
+  count: number
 }
 
 export default function ChargebacksPage() {
@@ -21,14 +24,17 @@ export default function ChargebacksPage() {
     day: "numeric",
   })
 
-  const { data: summary } = useQuery<ChargebackSummary>({
+  const { data: records } = useQuery<ChargebackRecord[]>({
     queryKey: ["chargebacks-summary"],
     queryFn: () =>
-      axios.get<ChargebackSummary>(`${API_BASE}/api/chargebacks/summary`).then((r) => r.data),
+      axios.get<ChargebackRecord[]>(`${API_BASE}/api/chargebacks/summary`).then((r) => r.data),
     refetchInterval: 60_000,
   })
 
   const fmt = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`
+
+  const totalAmount = records ? records.reduce((s, r) => s + r.total_amount, 0) : 0
+  const totalCount = records ? records.reduce((s, r) => s + r.count, 0) : 0
 
   return (
     <div className="flex flex-col flex-1 px-4 py-8 max-w-7xl mx-auto w-full gap-6">
@@ -51,11 +57,11 @@ export default function ChargebacksPage() {
         </CardContent>
       </Card>
 
-      {summary && (
+      {records && records.length > 0 && (
         <p className="text-sm text-muted-foreground">
           Total chargeback exposure (excl. TPR):{" "}
-          <strong className="text-foreground">{fmt(summary.total_amount ?? 0)}</strong> across{" "}
-          <strong className="text-foreground">{summary.incident_count ?? 0} incidents</strong>
+          <strong className="text-foreground">{fmt(totalAmount)}</strong> across{" "}
+          <strong className="text-foreground">{totalCount} incidents</strong>
         </p>
       )}
     </div>

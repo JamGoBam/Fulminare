@@ -1,55 +1,56 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Final demo polish — rehearsal dry-run verification.
+Final demo polish — runtime verification + rehearsal dry-run.
 
 ## LAST SESSION SUMMARY
-- Created `web/frontend/components/StatsBar.tsx`: live 4-stat bar (SKUs tracked | Critical | Warning | est. savings/yr) rendered between header and savings banner on home page; uses same `["summary"]` query key as SavingsBanner so TanStack deduplicates the request
-- Added chargeback exposure callout to `chargebacks/page.tsx`: converted to `"use client"`, fetches `/api/chargebacks/summary`, renders "Total chargeback exposure (excl. TPR): $X across N incidents" below heatmap card; assumes fields `total_amount` + `incident_count` — **verify these match the actual API response** on first boot
-- Updated `README.md`: replaced old `## Quick start` block with new `## Quick Start` using `scripts/start.sh`
-- Commit: `[FRONTEND] polish: stats bar, chargeback exposure, README quick-start`
+- Fixed `chargebacks/page.tsx`: `/api/chargebacks/summary` returns a **list** of `{cause_code, channel, dc, total_amount, count}` records (not a single object); now reduces the array to compute totals — `totalAmount` and `totalCount`
+- Reviewed `demo/scenario.md`: all 5 steps have corresponding UI features; scenario numbers ($900 net save, $970 SHORT_SHIP, $10,800/yr) come from seed data and need on-screen verification
+- Commit: `[FRONTEND] chargebacks: fix summary field types (list→reduce)`
 
 ## NEXT TASK
-Boot the app, verify all acceptance criteria, and walk the rehearsal script.
+Boot the app in a **Windows terminal** (PowerShell/CMD), verify UI, run tests, do rehearsal walkthrough.
 
-**1 — Runtime verification (Windows terminal, not Git Bash):**
+**1 — Boot and verify (Windows terminal only — not Git Bash):**
 ```bash
 bash scripts/start.sh
+# waits for API :8000 and frontend :3000
 ```
-Check each of these:
-- Home page: stat bar shows "N SKUs tracked | N Critical | N Warning | $X est. savings / year"
-- Home page: savings banner appears below stat bar
-- Chargebacks page: exposure line appears below heatmap card
-- Click a SKU in the imbalance table → `/sku/[sku]` page loads correctly
-- `pytest -q` passes 18/18
+Check each item:
+- [ ] Home: stat bar shows "N SKUs tracked | 1 Critical | 1 Warning | $10,800 est. savings / year"
+- [ ] Home: green savings banner appears below stat bar
+- [ ] Home: scroll down — SKU-004 is visible in the imbalance table with Critical badge
+- [ ] Home: Transfer Recommendations card shows "108 units DC_CENTRAL → DC_EAST: $600 freight. Net save $900."
+- [ ] Chargebacks: exposure line appears — "Total chargeback exposure (excl. TPR): $X across N incidents"
+- [ ] Chargebacks: SHORT_SHIP row shows DC_EAST ≈ $970, DC_WEST ≈ $680
+- [ ] Click a SKU in the imbalance table → `/sku/[sku]` drill-down loads
+- [ ] `pytest -q` passes 18/18
 
-**2 — Fix chargebacks summary field names if needed:**
-Open `web/api/` to find the actual response shape of `/api/chargebacks/summary`. If the fields differ from `total_amount` / `incident_count`, update `web/frontend/app/chargebacks/page.tsx` (`ChargebackSummary` interface + usages on lines 12–13 and 57–58).
+**2 — If any scenario number mismatches:**
+Run `python -m analytics.pipeline` to re-derive processed data, then reload. If numbers still don't match `demo/scenario.md`, check `data/seed/` CSV values against the expected figures — do NOT edit analytics or seed data without understanding the root cause first.
 
 **3 — Rehearsal walkthrough:**
-Read `demo/scenario.md` and walk through the full script once end-to-end. Note any awkward moments or broken steps.
+Follow `demo/scenario.md` step-by-step, speaking aloud. ≤8 minutes total. Note any awkward moments.
 
 **Acceptance criteria:**
-- All 5 runtime checks above pass
+- All 8 runtime checks above pass
 - `pytest -q` 18/18
-- Scenario walkthrough completes without errors or broken states
+- Rehearsal walkthrough completes in ≤8 min without errors
 
 ## FILES IN PLAY
-- `web/frontend/app/chargebacks/page.tsx` (may need field name fix — see NEXT TASK step 2)
-- `web/frontend/components/StatsBar.tsx` (verify renders correctly)
-- `demo/scenario.md` (read-only for rehearsal walkthrough)
+- None expected — this is a verification-only task. If number mismatches are found, only `data/seed/*.csv` may need updating (unlock individually if needed).
+- `demo/scenario.md` — read-only reference
 
 ## LOCKED / DO NOT TOUCH
 - `analytics/**` — all locked
-- `web/api/**` — all locked (READ-ONLY to check chargebacks summary fields if needed)
-- `web/frontend/app/sku/**`, `web/frontend/components/ImbalanceTable.tsx`, `TransferCard.tsx`, `ChargebackHeatmap.tsx`, `SavingsBanner.tsx` — locked
-- `web/frontend/app/page.tsx` — locked (stat bar is in)
+- `web/api/**` — all locked
+- `web/frontend/**` — all locked (code is done)
 - `tests/**` — must stay green
-- `data/seed/**` — locked
-- `scripts/start.sh`, `scripts/handoff.sh` — locked
+- `data/seed/**` — locked unless a specific number mismatch is root-caused here
+- `scripts/**` — locked
 
 ## BLOCKERS
-- Runtime verification incomplete — pnpm/Python not accessible in Git Bash; run `scripts/start.sh` in a native Windows terminal (PowerShell/CMD) to verify.
+- None — but boot requires a Windows terminal (PowerShell/CMD). Git Bash cannot run pnpm or Python on this machine.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
