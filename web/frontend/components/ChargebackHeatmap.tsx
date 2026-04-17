@@ -1,5 +1,6 @@
 "use client"
 
+import React from "react"
 import { useQuery } from "@tanstack/react-query"
 import axios from "axios"
 import {
@@ -28,10 +29,14 @@ function fmt(n: number): string {
   return n === 0 ? "" : `$${Math.round(n).toLocaleString("en-US")}`
 }
 
-function cellBg(n: number, max: number): string {
-  if (n === 0 || max === 0) return ""
-  const intensity = Math.round((n / max) * 80)
-  return `bg-destructive/${intensity} text-destructive-foreground`
+function cellStyle(n: number, max: number): React.CSSProperties {
+  if (n === 0 || max === 0) return {}
+  const t = n / max
+  const alpha = 0.12 + t * 0.68
+  return {
+    backgroundColor: `rgba(220, 38, 38, ${alpha.toFixed(2)})`,
+    color: alpha > 0.5 ? "#fff" : undefined,
+  }
 }
 
 function SkeletonRows() {
@@ -104,7 +109,8 @@ export function ChargebackHeatmap() {
               return (
                 <TableCell
                   key={dc}
-                  className={`text-right tabular-nums ${cellBg(amt, maxAmount)}`}
+                  className="text-right tabular-nums transition-colors"
+                  style={cellStyle(amt, maxAmount)}
                 >
                   {fmt(amt)}
                 </TableCell>
