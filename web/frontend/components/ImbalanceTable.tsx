@@ -59,7 +59,18 @@ export function ImbalanceTable() {
     ? [...data].sort((a, b) => b.imbalance_score - a.imbalance_score)
     : []
 
+  const criticalCount = rows.filter((r) => r.status === "critical").length
+
   return (
+    <div className="flex flex-col">
+      {criticalCount > 0 && (
+        <div className="mx-4 mt-4 flex items-center gap-2 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          <span className="text-base">⚠</span>
+          <span>
+            <strong>{criticalCount} SKU-DC {criticalCount === 1 ? "pair" : "pairs"}</strong> at critical inventory levels — immediate action required.
+          </span>
+        </div>
+      )}
     <Table>
       <TableHeader>
         <TableRow>
@@ -102,5 +113,6 @@ export function ImbalanceTable() {
         ))}
       </TableBody>
     </Table>
+    </div>
   )
 }

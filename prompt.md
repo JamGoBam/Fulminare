@@ -1,51 +1,61 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Expand the dashboard: add a critical-alert banner, the chargeback heatmap page, and beef up seed data so critical/warning badges actually fire in the demo.
+Build the chargeback heatmap page (`/chargebacks`) + transfer-vs-wait recommendation card, so the demo covers the Business and Design judging criteria.
 
 ## LAST SESSION SUMMARY
-- Bootstrapped Next.js 16 (App Router, Tailwind v4, shadcn/ui New York), added TanStack Query + axios, shadcn table/badge/card components
-- Implemented `QueryProvider`, `ImbalanceTable` component (skeleton loading, error state, status badges, "—" for null DoS), and dashboard home `app/page.tsx`
-- End-to-end verified: `GET /api/inventory/imbalance` → 200, all 7 columns render with live data, null DoS → "—", sort by imbalance_score descending
-- Commit: `[FRONTEND] dashboard: bootstrap Next.js, imbalance table with live API data` (hash: TBD)
+- Added SKU-004 (Reishi Mushroom Capsules) to seed CSVs: DC_EAST critical (DoS=10, demand=5/day), DC_WEST warning (DoS=20, demand=0.5/day), DC_CENTRAL ok (DoS=null, no demand)
+- Added critical alert banner in `ImbalanceTable.tsx`: red card above table, counts critical SKU-DC pairs, hidden when 0
+- Verified in browser: "⚠ 1 SKU-DC pair at critical inventory levels", Critical/Warning/OK badges all fire; 18/18 tests still green
+- Commit: `[DATA+FRONTEND] seed: add SKU-004 critical/warning rows; dashboard: alert banner` (hash: TBD)
 
 ## NEXT TASK
-Two parallel improvements to make the demo compelling:
+Implement the chargeback analytics page + backend endpoint.
 
-**1 — Seed data: add critical/warning SKUs** (`data/seed/inventory.csv`, `data/seed/sales.csv`)
-Add rows so at least 1 SKU has DoS < 14 ("critical") at one DC and DoS > 30 at another, and at least 1 SKU has DoS 14–30 ("warning"). This makes the status badges fire in the live demo.
-- Keep existing SKU-001/002/003 rows unchanged
-- Add SKU-004 rows (3 DCs in inventory.csv): one DC with available=50, another with available=5, third with available=300
-- Add SKU-004 to skus.csv (1 row)
-- Add sales for SKU-004 in sales.csv: ~5 units/day at DC_EAST to push that DC to critical (DoS ~1), ~0.5/day at DC_WEST (DoS ~10), 0 at DC_CENTRAL
+**Backend — `analytics/chargeback.py` + `web/api/routes/chargebacks.py`:**
 
-**2 — Alert banner** (`web/frontend/components/ImbalanceTable.tsx` or new `AlertBanner.tsx`)
-Above the table, show a yellow/red banner: "⚠ {N} SKU-DC pairs at critical levels" when any rows have `status === "critical"`. Hide when N = 0.
-- Add it inside `ImbalanceTable` or as a separate component imported by `page.tsx`
-- Use shadcn `Card` with `bg-destructive/10 border-destructive/30` styling
+1. `chargeback_summary(chargebacks_df) -> pd.DataFrame`
+   - Filter out `TPR` cause code (CLAUDE.md locked rule)
+   - Group by `cause_code × channel × dc`, sum `amount`
+   - Output columns: `cause_code`, `channel`, `dc`, `total_amount`, `count`
+
+2. `GET /api/chargebacks/summary` — returns JSON list from `chargeback_summary`
+   - Mount router in `web/api/main.py` under `/api`
+
+**Frontend — `web/frontend/app/chargebacks/page.tsx` + `web/frontend/components/ChargebackHeatmap.tsx`:**
+
+- Route: `http://localhost:3000/chargebacks`
+- Page header: "Chargeback Analysis" + today's date
+- `<ChargebackHeatmap>` component:
+  - Fetch from `GET /api/chargebacks/summary` via TanStack Query
+  - Render a simple grouped table: rows = cause codes, columns = DCs (DC_EAST / DC_WEST / DC_CENTRAL)
+  - Each cell: total `$amount` formatted as `$X,XXX` (no decimals), grey/empty for zero
+  - Below table: totals row
+  - Loading: skeleton; Error: red error message
+- Nav link from home page (`app/page.tsx`): add "Chargeback Analysis →" link in header
 
 **Acceptance criteria:**
-- `pytest tests/test_imbalance.py -q` still passes (18/18)
-- `python3 -m data.ingest --seed` runs clean with new rows
-- Dashboard shows at least 1 red "Critical" badge and 1 yellow "Warning" badge
-- Alert banner appears above the table when critical rows exist
+- `uvicorn web.api.main:app --port 8000` → `GET /api/chargebacks/summary` returns JSON with `cause_code`, `channel`, `dc`, `total_amount`, `count`
+- `http://localhost:3000/chargebacks` renders the heatmap table with real data
+- TPR rows are absent from results
 - `pnpm --dir web/frontend dev` starts clean (no TS errors)
 
 ## FILES IN PLAY
-- `data/seed/inventory.csv` (add SKU-004 rows)
-- `data/seed/sales.csv` (add SKU-004 sales with asymmetric demand)
-- `data/seed/skus.csv` (add SKU-004 product row)
-- `web/frontend/components/ImbalanceTable.tsx` (add alert banner)
-- `web/frontend/app/page.tsx` (if banner is a separate component)
+- `analytics/chargeback.py` (implement: chargeback_summary)
+- `web/api/routes/chargebacks.py` (implement: GET /api/chargebacks/summary)
+- `web/api/main.py` (mount chargebacks router)
+- `web/frontend/app/chargebacks/page.tsx` (new page)
+- `web/frontend/components/ChargebackHeatmap.tsx` (new component)
+- `web/frontend/app/page.tsx` (add nav link)
 
 ## LOCKED / DO NOT TOUCH
-- `analytics/**` — metrics + imbalance locked
-- `web/api/**` — backend working; do not touch
+- `analytics/metrics.py`, `analytics/forecast.py`, `analytics/imbalance.py` — locked
+- `web/api/routes/inventory.py` — working; do not touch
 - `tests/test_imbalance.py` — must stay green
-- `data/seed/` files other than inventory.csv, sales.csv, skus.csv
+- `data/seed/**` — seed data complete; do not touch
 
 ## BLOCKERS
-- Real POP CSVs still not received. No blocker — synthetic seed data is sufficient.
+- Real POP CSVs still not received. No blocker — seed chargebacks.csv has 15 rows sufficient for demo.
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
