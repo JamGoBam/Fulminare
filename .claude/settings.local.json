@@ -7,7 +7,19 @@
       "Bash(bash scripts/handoff.sh \"[META] docs: Phase 5 handoff — sprint complete, chatbot e2e pending\")",
       "Bash(bash scripts/handoff.sh \"[META] plan: add PLAN.md + pivot chatbot to local Ollama \\(no API key\\)\")",
       "Bash(git push *)",
-      "Bash(bash scripts/handoff.sh \"[META] figma: copy source TSX into repo + visual tokens in FIGMA_PROMPT.md\")"
+      "Bash(bash scripts/handoff.sh \"[META] figma: copy source TSX into repo + visual tokens in FIGMA_PROMPT.md\")",
+      "Bash(extract-text \"/Users/vincenthoang/Downloads/HTC2026 Prompt3 InventoryFulfillment.docx\")",
+      "Bash(pandoc \"/Users/vincenthoang/Downloads/HTC2026 Prompt3 InventoryFulfillment.docx\" -t plain)",
+      "Read(//private/tmp/**)",
+      "Bash(cp \"/Users/vincenthoang/Downloads/HTC2026 Prompt3 InventoryFulfillment.docx\" prompt3.docx)",
+      "Bash(unzip -o prompt3.docx -d prompt3_unpacked)",
+      "Bash(curl -s http://localhost:11434/api/tags)",
+      "Bash(python3 -c \"import sys,json; d=json.load\\(sys.stdin\\); print\\([m['name'] for m in d.get\\('models',[]\\)]\\)\")",
+      "Bash(curl -s http://localhost:8000/healthz)",
+      "Bash(ollama serve *)",
+      "Bash(echo \"PID: $!\" sleep 3 curl -s http://localhost:11434/api/tags)",
+      "Read(//usr/local/bin/**)",
+      "Read(//usr/bin/**)"
     ]
   }
 }

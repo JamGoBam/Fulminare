@@ -15,91 +15,72 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- **U1 complete** — Removed TopBar search; wired FilterBar search to `?q=`; moved URGENT inline; wired 4 cosmetic dropdowns to URL params; ActionQueue consumes risk/rec/sort. Zero errors.
-- **U2 complete** — Bell popover live: `useState` dropdown in `TopBar.tsx`, reuses `["action-items"]` TanStack Query cache, lists top-3 URGENT rows (name · SKU · DC · days · penalty), clicking a row navigates to `/?selected=`, red dot hides when count=0.
-- **U3 complete** — #5: `recommended` prop on both comparison cards; Transfer card blue when Transfer Now is recommended, slate when not (and vice versa for Inbound card). #6: `ActionStatusProvider` + `useActionStatus` context with sessionStorage persistence; 4 action buttons update shared state; confirmation banner in panel; status chip + opacity + sink-to-bottom in ActionQueue. #7: "Explain in chat ↗" button under reasoning bullets calls `openChatbot()` with prefilled message. Zero console errors verified on fresh server start.
+- **U1–U10 complete** — All frontend polish merged to main: FilterBar/search wiring, bell popover, conditional card color, action-button state, Explain-in-chat, draggable chatbot panel, analytics inline rec panel.
+- **U11 complete** — Chatbot live verification: Ollama installed at `/Applications/Ollama.app`; `qwen2.5:3b-instruct` pulled and tested; full E2E chat verified in browser (`/ask` page, FAB panel, SSE streaming, tool-call pill display, no API key). Two validator bugs fixed: int-vs-float false positives (`0` vs `0.0`) and dollar-rounding false positives (`$115,405.87` → `$115,406`). 59 pytest passing.
+- **Blocker note** — Only `qwen2.5:3b-instruct` is available locally; `qwen2.5:7b-instruct` still needs `ollama pull qwen2.5:7b-instruct` (~4.7 GB). The 7b model is significantly more accurate on math/numbers. Pull before running P16 success-criteria verification.
 
-The project is shippable. To start the full stack:
+To start the full stack:
 ```bash
-uvicorn web.api.main:app --reload --port 8000   # backend
-pnpm --dir web/frontend dev                      # frontend → http://localhost:3000
-ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
+/Applications/Ollama.app/Contents/Resources/ollama serve &   # daemon on :11434
+OLLAMA_MODEL=qwen2.5:7b-instruct uvicorn web.api.main:app --reload --port 8000
+pnpm --dir web/frontend dev                                    # frontend → http://localhost:3000
 ```
 
-If additional work is needed, candidates from PLAN.md:
-- **P8** — Transfers dedicated page (`/transfers`) with per-decision cards
-- **P9** — SKU detail page redesign (`/sku/[sku]`) with 3-DC cards + PO timeline
-- **P10** — Chargebacks drill-down with filters + top-10 offender list
-- Richer seed data (P1/P2) — 25 SKUs with varied patterns for more compelling demo
-
 ---
 
 ---
 
 ## NEXT TASK
 
-**U3 — Rec panel polish: conditional blue, action-button state, Explain button**
+**U12 — Pull qwen2.5:7b-instruct + P16 end-to-end success-criteria verification**
 
-Three sub-tasks, all in `web/frontend/components/`:
+Acceptance criteria (from PLAN.md §6):
 
-**#5 — Conditional card color (`ActionComparisonCard.tsx`)**
-- `TransferComparisonCard` always shows `bg-blue-600` badge + `bg-blue-50/30` border even when the recommendation is Wait. Fix: add `recommended: boolean` prop. When `recommended=true`: keep current `border-blue-200 bg-blue-50/30` + `bg-blue-600` badge + `bg-blue-500` confidence bar. When `recommended=false`: use `border-slate-200 bg-slate-50/30` + `bg-slate-600` badge + `bg-slate-400` confidence bar.
-- In `RecommendationPanel.tsx`, pass `recommended={item.recommendation === "Transfer Now"}` to `TransferComparisonCard` and `recommended={item.recommendation === "Wait"}` to `InboundComparisonCard`. `InboundComparisonCard` needs the same `recommended` prop wired to its border/badge colors.
+**Step 0 — Pull the 7b model** (one-time, ~4.7 GB):
+```bash
+/Applications/Ollama.app/Contents/Resources/ollama pull qwen2.5:7b-instruct
+```
+Then restart the backend without `OLLAMA_MODEL` override (defaults to 7b).
 
-**#6 — Action-button client state (`RecommendationPanel.tsx`)**
-- Replace the 4 `console.log` buttons with real client state. Use a `Map<string, "approved"|"waiting"|"escalated"|"assigned">` stored in React context or `sessionStorage` (key: `"pop:actions"`). On button click: (a) save the status, (b) show a `<div>` confirmation banner inside the panel ("Marked for WMS review ✓"), (c) add a status chip on the matching Action Queue row (pass via context or use a `CustomEvent` dispatched to a listener in ActionQueue). The row moves to the bottom of the queue when it has a status. No backend call.
-- For the context approach: create `web/frontend/lib/action-status-context.tsx` exporting `ActionStatusProvider` and `useActionStatus()` hook. Wrap the layout in it. ActionQueue reads the map to sort resolved items to bottom and show a small chip.
+**Step 1–5 — Run each success-criteria task via preview_* MCP tools:**
 
-**#7 — "Explain in chat" button (`RecommendationPanel.tsx`)**
-- Under the "Why This Recommendation" bullet list, add a small ghost button: `<button onClick={...}>Explain in chat ↗</button>`. On click: call `openChatbot()` (imported from `ActionQueue.tsx`) with message: `` `Explain why ${item.sku} at ${item.atRiskDC} should ${item.recommendation}. Walk me through the reasoning bullets.` ``
+1. **Today triage** — navigate to `/`, look for the action queue. Does it show critical SKUs with $ risk? Does the top row surface J-72402 or F-12998? Pass: hero copy + $ figure + two action options visible within 30s.
+2. **Find J-72402** — type "J-72402" in top-bar search, land on SKU detail / recommendation panel. Read recommendation. Pass: correct Transfer/Wait shown with $ tradeoff < 2 min.
+3. **East DC critical filter** — navigate to `/inventory`, apply Status=Critical + DC=East filter (or DC_EAST). Pass: URL contains filter params, list shows only East DC critical rows.
+4. **Chargebacks** — navigate to `/chargebacks` or `/analytics`, filter/read top cause + top customer. Pass: correct customer and cause code shown.
+5. **Chatbot SKU question** — on `/ask`, type "Why is J-72402 critical?". Pass: answer in <20s, cites days-of-supply and $ penalty from tool result, no `⚠ unverified` banner.
 
-Commit: `[FRONTEND] polish: U3 — conditional card color, action-button state, Explain in chat`
-Then update prompt.md NEXT TASK → U4 and run `scripts/handoff.sh`.
+**Fix any gaps found during the run.** The 5 tasks map to real UI components — if a task fails, trace the component and fix it before moving on.
 
----
+**Files likely in play:** dashboard/today page, `/inventory` filters, `/chargebacks` or `/analytics` page, `Chatbot.tsx` / `/ask`.
 
-## NEXT TASK
+Commit: `[FRONTEND] verify: U12 — P16 success criteria all passing`
+Then update prompt.md NEXT TASK and run `scripts/handoff.sh`.
 
-**U4 — Draggable chatbot panel (replace Sheet)**
+## FILES IN PLAY (U12)
 
-Replace the `<Sheet>` in `web/frontend/components/Chatbot.tsx` with a draggable, non-modal fixed-position panel. Keep all SSE streaming logic intact.
-
-Acceptance criteria:
-1. **No overlay / no blur** — remove `<Sheet>`, `<SheetContent>`, `<SheetHeader>`, `<SheetTitle>` entirely. No backdrop, no darkening of the dashboard.
-2. **Fixed panel** — `fixed bottom-6 right-6 w-96 h-[32rem] bg-white rounded-xl border border-slate-200 shadow-xl z-40 flex flex-col`. Hidden when `open=false` (use `display:none` or conditional render).
-3. **Drag handle** — the panel header (title bar) is draggable. Use `onPointerDown`/`onPointerMove`/`onPointerUp` on the header div. Translate the panel with `transform: translate(dx, dy)` state. Clamp so panel stays fully inside the viewport: `dx` in `[-(window.innerWidth - panelWidth - right), 0]`, `dy` in `[-(window.innerHeight - panelHeight - bottom), 0]` (adjust for starting position bottom-right). Reset drag offset to `{x:0, y:0}` when panel closes.
-4. **Minimize button** — a `ChevronDown` icon button in the header that sets `minimized=true`, collapsing panel to just the title bar (height `~48px`). Clicking the FAB or `ChevronUp` un-minimizes.
-5. **Close button** — `X` icon button in the header that closes (sets `open=false`). FAB still reopens.
-6. **FAB unchanged** — `fixed bottom-6 right-6 z-40` blue circle. When panel is open, FAB should be hidden (or overlap is fine since panel is bottom-right — just hide FAB when open to avoid visual clutter).
-7. **Keep all existing logic** — SSE streaming, `chat:prefill` event listener, suggestion chips, `unverified` footnote, tool-call pills.
-
-Files: `web/frontend/components/Chatbot.tsx` only. Remove the shadcn Sheet imports; keep Button and Input imports.
-
-Commit: `[FRONTEND] polish: U4 — draggable non-modal chatbot panel, no overlay`
-Then update prompt.md NEXT TASK → U5 and run `scripts/handoff.sh`.
-
-## FILES IN PLAY (U4)
-
-- `web/frontend/components/Chatbot.tsx` — replace Sheet with draggable fixed panel
+- Dashboard / today page — success criteria #1
+- `web/frontend/app/inventory/page.tsx` — success criteria #3
+- `web/frontend/app/chargebacks/page.tsx` or `analytics/page.tsx` — success criteria #4
+- `web/frontend/app/ask/page.tsx`, `web/api/chat_validator.py` — success criteria #5
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- `web/api/chat_validator.py`, `web/api/routes/chat.py` — P12 deliverables
-- `web/frontend/components/Chatbot.tsx` — will change in U4; skip for now
 
 ## BLOCKERS
 
-- None. Backend on :8000, frontend on :3000, 59 pytest passing.
+- `qwen2.5:7b-instruct` not yet pulled locally (only 3b available). Pull before running success-criteria #5. Without 7b the chatbot may hallucinate numbers (3b is less accurate on math).
 
 ## QUICK-RESUME PROMPT
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (P16 — end-to-end verification) per the spec in prompt.md.
+Note: U1–U11 are complete and merged to main. Execute NEXT TASK (U12 — P16 success-criteria verification) per the spec in prompt.md.
+Requires: ollama serve running and qwen2.5:7b-instruct pulled locally.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When P16 is done, update prompt.md and run scripts/handoff.sh.
+When U12 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
