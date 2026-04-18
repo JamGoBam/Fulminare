@@ -15,9 +15,9 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- **U1–U11 complete** — All frontend polish merged; chatbot live (Ollama `qwen2.5:3b-instruct`); two validator bugs fixed (int-vs-float, dollar-rounding); 59 pytest passing.
-- **U12 complete** — All 5 P16 success criteria verified in browser: (1) dashboard action queue shows J-72402 critical; (2) SKU panel shows Transfer Now with $115,406 net saving; (3) inventory filter DC=East+Critical works; (4) chargebacks page updated with top-customer (MDO100A) and top-cause (Missed delivery window) ranked tables; (5) chatbot answers "Why is J-72402 critical?" correctly citing 12 DoS and $115,405 penalty, no ⚠ warning.
-- **7b model pull** — `qwen2.5:7b-instruct` pull was started but may not be complete (~4.7 GB). Verify with `/Applications/Ollama.app/Contents/Resources/ollama list` before using in production.
+- **U1–U12 complete** — All 5 P16 success criteria green; chargebacks page updated with ranked tables; 59 pytest passing.
+- **U13 complete** — `qwen2.5:7b-instruct` confirmed pulled (4.7 GB, 10 min ago); backend restarted with 7b default; criterion 5 re-verified with 7b (no ⚠, cites 12 DoS + $115,406); `demo/scenario.md` updated with correct live numbers ($717,665 delta, $115,406 transfer save, 219 SKU-DC rows, MISSED_WINDOW $2.76M).
+- **System is demo-ready.** All stack components verified: Ollama 7b + FastAPI :8000 + Next.js :3000.
 
 To start the full stack:
 ```bash
@@ -32,36 +32,33 @@ pnpm --dir web/frontend dev                                    # frontend → ht
 
 ## NEXT TASK
 
-**U13 — Pull qwen2.5:7b-instruct + demo preparation**
+**U14 — Merge to main + final pre-demo checklist**
 
-All 5 P16 success criteria are now green. The remaining work before the HTC 2026 demo:
+U13 is complete. The worktree branch `claude/vibrant-jepsen-28b6c8` is ahead of main. Merge and final prep:
 
-**Step 0 — Confirm 7b model available:**
+**Step 1 — Merge worktree branch to main:**
 ```bash
-/Applications/Ollama.app/Contents/Resources/ollama list
-# If qwen2.5:7b-instruct is not listed, pull it:
-/Applications/Ollama.app/Contents/Resources/ollama pull qwen2.5:7b-instruct
+git checkout main
+git merge claude/vibrant-jepsen-28b6c8 --no-ff -m "[META] merge: U12+U13 — P16 criteria verified, 7b confirmed, demo scenario updated"
+git push origin main
 ```
 
-**Step 1 — Run full stack with 7b model and re-verify criterion 5:**
-```bash
-/Applications/Ollama.app/Contents/Resources/ollama serve &
-uvicorn web.api.main:app --reload --port 8000   # no OLLAMA_MODEL override → defaults to 7b
-pnpm --dir web/frontend dev
-```
-Then repeat criterion 5: ask "Why is J-72402 critical?" on `/ask`. Pass: no ⚠ banner, numbers cited correctly.
+**Step 2 — Final pre-demo checklist:**
+- [ ] `ollama list` shows `qwen2.5:7b-instruct`
+- [ ] `pytest -q` — 59 passing
+- [ ] Stack starts clean: `ollama serve &`, `uvicorn web.api.main:app --port 8000`, `pnpm --dir web/frontend dev`
+- [ ] `/` dashboard loads with J-72402 in action queue
+- [ ] `/chargebacks` shows MDO100A top customer + MISSED_WINDOW top cause
+- [ ] `/ask` "Why is J-72402 critical?" → answer in <20s, no ⚠
 
-**Step 2 — Demo dry-run** using `demo/scenario.md` walkthrough script. Tighten copy if anything feels rough under time pressure.
+**Step 3 — Run `demo/scenario.md` end-to-end once** with a timer. Target: 6–8 min.
 
-**Step 3 — Final commit + push to main.**
+Commit: `[DEMO] prep: U14 — pre-demo final checklist`
 
-Commit: `[DEMO] prep: U13 — 7b model verified + demo dry-run`
+## FILES IN PLAY (U14)
 
-## FILES IN PLAY (U13)
-
-- `demo/scenario.md` — walkthrough script for demo dry-run
-- `web/api/main.py` — ensure default model is `qwen2.5:7b-instruct`
-- `web/frontend/app/ask/page.tsx` — chatbot UI (re-verify with 7b)
+- `demo/scenario.md` — updated walkthrough script (numbers verified against live API)
+- `web/api/config.py` — `OLLAMA_MODEL` default = `qwen2.5:7b-instruct`
 
 ## LOCKED / DO NOT TOUCH
 
@@ -70,16 +67,16 @@ Commit: `[DEMO] prep: U13 — 7b model verified + demo dry-run`
 
 ## BLOCKERS
 
-- `qwen2.5:7b-instruct` pull may still be in progress (~4.7 GB). Check with `ollama list` before running.
+None. System is demo-ready.
 
 ## QUICK-RESUME PROMPT
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U12 are complete and merged. Execute NEXT TASK (U13 — 7b model verification + demo dry-run) per the spec in prompt.md.
-Requires: ollama serve running. Pull qwen2.5:7b-instruct if not yet available.
+Note: U1–U13 are complete. Execute NEXT TASK (U14 — merge to main + final pre-demo checklist) per the spec in prompt.md.
+Requires: ollama serve running with qwen2.5:7b-instruct available.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U13 is done, update prompt.md and run scripts/handoff.sh.
+When U14 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
