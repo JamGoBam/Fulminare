@@ -3,7 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { QueryProvider } from "@/components/QueryProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { Chatbot } from "@/components/Chatbot";
+import { Chatbot } from "@/components/Chatbot"
+import { OnboardingTour } from "@/components/OnboardingTour";
 import { Sidebar } from "@/components/Sidebar";
 import { TopBar } from "@/components/TopBar";
 
@@ -45,6 +46,7 @@ export default function RootLayout({
               </div>
             </div>
             <Chatbot />
+            <OnboardingTour />
           </TooltipProvider>
         </QueryProvider>
       </body>

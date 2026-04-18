@@ -150,8 +150,12 @@ export function ActionQueue() {
         return (
           <li
             key={item.id}
+            role="button"
+            tabIndex={0}
+            aria-pressed={isSelected}
             onClick={() => select(item.id)}
-            className={`relative flex items-start gap-3 px-4 py-4 cursor-pointer border-l-4 transition-colors
+            onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(item.id) } }}
+            className={`relative flex items-start gap-3 px-4 py-4 cursor-pointer border-l-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset
               ${isSelected ? "bg-blue-50 border-l-blue-600" : `${accentBorder(days)} hover:bg-slate-50`}
               ${isUrgent && !isSelected ? "bg-red-50/30" : ""}
             `}

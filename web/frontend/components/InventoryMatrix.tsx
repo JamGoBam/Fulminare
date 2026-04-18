@@ -3,7 +3,7 @@
 import { useMemo, useState, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { Search, ChevronLeft, ChevronRight } from "lucide-react"
+import { Search, ChevronLeft, ChevronRight, AlertTriangle, Clock, TrendingUp, CheckCircle } from "lucide-react"
 import { getInventoryImbalance, getActionItems } from "@/lib/api"
 import type { ImbalanceRow } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
@@ -16,10 +16,10 @@ const DC_LABELS: Record<string, string> = {
 }
 
 const STATUS_META = {
-  Critical: { chip: "bg-red-100 text-red-700 border border-red-200" },
-  Watch: { chip: "bg-amber-100 text-amber-700 border border-amber-200" },
-  Healthy: { chip: "bg-green-100 text-green-700 border border-green-200" },
-  Overstock: { chip: "bg-blue-100 text-blue-700 border border-blue-200" },
+  Critical: { chip: "bg-red-100 text-red-700 border border-red-200",     Icon: AlertTriangle },
+  Watch:    { chip: "bg-amber-100 text-amber-700 border border-amber-200", Icon: Clock        },
+  Healthy:  { chip: "bg-green-100 text-green-700 border border-green-200", Icon: CheckCircle  },
+  Overstock:{ chip: "bg-blue-100 text-blue-700 border border-blue-200",    Icon: TrendingUp   },
 } as const
 
 const REC_COLORS: Record<string, string> = {
@@ -175,7 +175,8 @@ export function InventoryMatrix() {
                     onChange={() => toggleStatus(s)}
                     className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_META[s].chip}`}>
+                  <span className={`inline-flex items-center gap-1 text-xs font-medium px-2 py-0.5 rounded ${STATUS_META[s].chip}`}>
+                    {(() => { const I = STATUS_META[s].Icon; return <I className="w-3 h-3 shrink-0" /> })()}
                     {s}
                   </span>
                 </label>
@@ -294,8 +295,9 @@ export function InventoryMatrix() {
                         </td>
                         <td className="px-4 py-3">
                           <span
-                            className={`text-xs font-semibold px-2 py-0.5 rounded ${STATUS_META[statusLabel].chip}`}
+                            className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded ${STATUS_META[statusLabel].chip}`}
                           >
+                            {(() => { const I = STATUS_META[statusLabel].Icon; return <I className="w-3 h-3 shrink-0" /> })()}
                             {statusLabel}
                           </span>
                         </td>
