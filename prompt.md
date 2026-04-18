@@ -18,55 +18,53 @@ Three linked workstreams for the real-user POP Inventory tool:
 - Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards + Available Reports table (5 rows). `app/settings/page.tsx`: Preferences toggles, DC Labels read-only, Integrations with status badges. Zero errors.
 - Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=`, × clear. `FilterBar.tsx`: pills wired to `?status=`, DC dropdown to `?dc=`. `ActionQueue.tsx`: client-side filtering + EmptyState.
 - Completed **F9** — aria-current nav, keyboard nav rows, icon+color chips, 25-term glossary, OnboardingTour banner.
-- Completed **P11** — `web/api/config.py` (new): `OLLAMA_URL/MODEL/TIMEOUT` from env. `web/api/routes/chat.py`: full rewrite — `AsyncOpenAI(base_url=OLLAMA_URL, api_key="ollama")`; streaming accumulates tool_calls across chunks; OpenAI tool message format (`role: "tool"`, `tool_call_id`); `APIConnectionError` → SSE `{"type":"error","message":"Ollama offline — run ollama serve"}`. `chat_prompts.py`: removed `cache_control` dict, `SYSTEM_PROMPT` now a plain string, added grounding rule. `chat_tools.py`: TOOL_SCHEMAS converted to OpenAI format (`{"type":"function","function":{...,"parameters":{...}}}`). `pyproject.toml`: `anthropic>=0.40` → `openai>=1.40`. Verified: 0 `anthropic` references in codebase, `/healthz` 200, offline error path returns correct SSE, 59 pytest tests pass.
+- Completed **P11** — Ollama/OpenAI-compat swap; config.py; offline error path; 59 tests pass.
+- Completed **P12** — `web/api/chat_validator.py`: `extract_numbers` regex (dollars, days, units, SKUs, %); `validate_response` returns True when no tool results or no numbers, False when any number missing from combined tool results. `chat.py`: tracks `all_tool_results` across turns; emits `{"type":"warning"}` SSE before `done` if validation fails. `Chatbot.tsx`: `unverified` flag on `ChatMessage`; `warning` event sets it; renders amber `⚠ unverified — figures may not reflect live data` footnote below assistant bubble. 59 pytest pass, zero frontend console errors.
 
 ---
 
 ## NEXT TASK
 
-**P12 — Chatbot grounding validator** — Add `web/api/chat_validator.py` that checks model responses for hallucinated numbers, and wire a `⚠ unverified` footnote in `Chatbot.tsx` when validation fails.
+**P13 — `/ask` full-screen chatbot page** — Mirror the FAB Sheet chatbot at full width as a dedicated `/ask` route, deep-linkable via `?q=<initial prompt>`.
 
 ### What to build
 
-1. **`web/api/chat_validator.py`** (new) — post-stream numeric check:
-   ```python
-   import re
-   def extract_numbers(text: str) -> set[str]:
-       return set(re.findall(r"\$[\d,]+(?:\.\d+)?|[\d,]+(?:\.\d+)?\s*(?:days?|units?|SKUs?|%)", text))
-   
-   def validate_response(response_text: str, tool_results: list[str]) -> bool:
-       """Return True if all numbers in response appear in at least one tool result."""
-       nums = extract_numbers(response_text)
-       if not nums:
-           return True
-       combined = " ".join(tool_results)
-       return all(n in combined for n in nums)
+1. **`app/ask/page.tsx`** (new) — full-screen chat page:
+   - Same layout as the Sheet but fills the main content area
+   - Reads `?q=` from URL on mount; if present, auto-sends as the first message (once only, use `useRef` guard)
+   - Sidebar "Ask" nav item — add to `Sidebar.tsx` nav with `MessageSquare` icon, href `/ask`
+   - Same message rendering as `Chatbot.tsx` (user bubbles right, assistant left, tool pills, `⚠ unverified`)
+   - Shares `API_BASE` from `lib/api.ts` — **no new API endpoints**
+
+2. **Update `Sidebar.tsx`** — add Ask nav entry:
+   ```tsx
+   { icon: MessageSquare, label: "Ask", href: "/ask" }
    ```
+   Import `MessageSquare` from lucide-react (already used in Chatbot FAB).
 
-2. **`web/api/routes/chat.py`** — track tool result strings during execution; after `done` event, run `validate_response`; if False, append an extra SSE event: `{"type": "warning", "message": "Some figures could not be verified against live data."}`.
-
-3. **`web/frontend/components/Chatbot.tsx`** — render the `warning` SSE event type as a `⚠ unverified` amber footnote below the assistant message.
+3. **Deep-link**: other pages can link to `/ask?q=Why+is+SKU+J-72402+flagged` to pre-populate.
 
 ### Acceptance criteria
-1. `chat_validator.py` has `validate_response` returning correct bool.
-2. `pytest -q` passes.
-3. Frontend renders `⚠ unverified` footnote when warning event arrives.
+1. `/ask` loads, accepts input, streams responses (same as FAB chatbot).
+2. `/ask?q=hello` auto-sends "hello" on mount.
+3. Sidebar "Ask" link active-highlights correctly.
+4. FAB chatbot (`Chatbot.tsx`) is unchanged and still works.
+5. Zero TypeScript errors, zero console errors.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/api/chat_validator.py` (new)
-- `web/api/routes/chat.py` (add validator call + warning SSE)
-- `web/frontend/components/Chatbot.tsx` (render warning footnote)
+- `web/frontend/app/ask/page.tsx` (new)
+- `web/frontend/components/Sidebar.tsx` (add Ask nav entry)
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- `web/api/config.py`, `web/api/chat_prompts.py`, `web/api/chat_tools.py` — P11 deliverables
-- All frontend components except `Chatbot.tsx` — F1–F9 deliverables
-- `web/api/routes/action_items.py`, `web/api/routes/inventory.py`, etc.
+- `web/api/chat_validator.py`, `web/api/routes/chat.py` — P12 deliverables
+- `web/frontend/components/Chatbot.tsx` — P12 deliverable; do not modify
+- All other frontend components (F1–F9 deliverables)
 
 ## BLOCKERS
 
@@ -76,9 +74,9 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (P12 — chatbot grounding validator) per the spec in prompt.md.
+Execute NEXT TASK (P13 — /ask full-screen chatbot page) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When P12 is done, update prompt.md NEXT TASK to P13, then run scripts/handoff.sh.
+When P13 is done, update prompt.md NEXT TASK to P14/P16, then run scripts/handoff.sh.
 ```
 
 ---

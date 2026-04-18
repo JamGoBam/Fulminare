@@ -20,6 +20,7 @@ interface ChatMessage {
   role: Role
   content: string
   toolCalls?: string[]
+  unverified?: boolean
 }
 
 const SUGGESTIONS: Record<string, string[]> = {
@@ -146,6 +147,15 @@ export function Chatbot() {
                 }
                 return updated
               })
+            } else if (event.type === "warning") {
+              setMessages((prev) => {
+                const updated = [...prev]
+                const last = updated[updated.length - 1]
+                if (last?.role === "assistant") {
+                  updated[updated.length - 1] = { ...last, unverified: true }
+                }
+                return updated
+              })
             } else if (event.type === "error") {
               setMessages((prev) => {
                 const updated = [...prev]
@@ -247,6 +257,11 @@ export function Chatbot() {
                     <span className="animate-pulse">▋</span>
                   ) : null)}
                 </div>
+                {msg.unverified && (
+                  <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                    ⚠ unverified — figures may not reflect live data
+                  </p>
+                )}
               </div>
             ))}
             <div ref={bottomRef} />
