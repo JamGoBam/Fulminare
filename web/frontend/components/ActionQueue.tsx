@@ -73,9 +73,12 @@ export function ActionQueue() {
   const router = useRouter()
   const params = useSearchParams()
   const selectedId = params.get("selected")
-  const q = (params.get("q") ?? "").toLowerCase().trim()
-  const activeDc = (params.get("dc") ?? "").toLowerCase()
+  const q          = (params.get("q")       ?? "").toLowerCase().trim()
+  const activeDc   = (params.get("dc")      ?? "").toLowerCase()
   const activeStatus = new Set((params.get("status") ?? "").split(",").filter(Boolean))
+  const riskFilter = params.get("risk")    ?? ""
+  const recFilter  = params.get("rec")     ?? ""
+  const sortBy     = params.get("sort")    ?? ""
 
   const { data, isLoading, isError } = useQuery<ActionItem[]>({
     queryKey: ["action-items"],
@@ -124,6 +127,26 @@ export function ActionQueue() {
     )
   }
 
+  if (riskFilter) {
+    filtered = filtered.filter((item) => item.riskLevel === riskFilter)
+  }
+
+  if (recFilter) {
+    filtered = filtered.filter((item) => item.recommendation === recFilter)
+  }
+
+  // Sort
+  if (sortBy === "penalty") {
+    filtered = [...filtered].sort((a, b) => b.potentialPenalty - a.potentialPenalty)
+  } else if (sortBy === "confidence") {
+    filtered = [...filtered].sort((a, b) => b.confidence - a.confidence)
+  } else if (sortBy === "dc") {
+    filtered = [...filtered].sort((a, b) => a.atRiskDC.localeCompare(b.atRiskDC))
+  } else {
+    // default: urgency (days ascending)
+    filtered = [...filtered].sort((a, b) => a.daysUntilStockout - b.daysUntilStockout)
+  }
+
   // Top 3 High-risk rows get URGENT badge (based on unfiltered data)
   const urgentIds = new Set(
     data
@@ -155,24 +178,23 @@ export function ActionQueue() {
             aria-pressed={isSelected}
             onClick={() => select(item.id)}
             onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); select(item.id) } }}
-            className={`relative flex items-start gap-3 px-4 py-4 cursor-pointer border-l-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset
+            className={`flex items-start gap-3 px-4 py-4 cursor-pointer border-l-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset
               ${isSelected ? "bg-blue-50 border-l-blue-600" : `${accentBorder(days)} hover:bg-slate-50`}
               ${isUrgent && !isSelected ? "bg-red-50/30" : ""}
             `}
           >
-            {isUrgent && (
-              <span className="absolute top-2 right-3 bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
-                URGENT
-              </span>
-            )}
-
             <div className="mt-0.5">{urgencyIcon(days)}</div>
 
-            <div className="flex-1 min-w-0 pr-16">
+            <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-0.5">
                 <span className="font-mono text-xs font-semibold text-slate-800">{item.sku}</span>
                 <span className="text-xs text-slate-500">{item.atRiskDC}</span>
                 <RecBadge rec={item.recommendation} />
+                {isUrgent && (
+                  <span className="bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
+                    URGENT
+                  </span>
+                )}
                 {days < 9999 && (
                   <span className={`text-xs font-medium ${days <= 7 ? "text-red-600" : "text-amber-600"}`}>
                     {Math.round(days)}d to stockout

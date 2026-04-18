@@ -15,23 +15,22 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- **U0 complete** — Reconnaissance pass. Started backend (:8000) + frontend (:3000). Confirmed all 11 UX bugs via `preview_*` MCP tools. No code changes made.
-- Bug locations confirmed: dual search (#1 TopBar.tsx:46-64 + FilterBar.tsx:83-89), bell no-op (#2 TopBar.tsx:68), URGENT/penalty overlap (#3 ActionQueue.tsx:163-167), unwired dropdowns (#4 FilterBar.tsx:104-112), always-blue comparison card (#5 ActionComparisonCard.tsx:49,51), console.log-only action buttons (#6 RecommendationPanel.tsx:162-186), missing Explain button (#7), Sheet overlay chatbot (#8 Chatbot.tsx:213-284), analytics redirect to / (#9 analytics/page.tsx:209), ActionQueue row layout mismatch (#10), InventoryMatrix column mismatch (#11).
-- All 59 pytest passing. Backend + frontend clean.
+- **U1 complete** — Removed TopBar search (Bell + date only remain). Wired FilterBar search to `?q=` with 200ms debounce. Moved URGENT badge inline (next to RecBadge, penalty `$` no longer obscured). Replaced 4 cosmetic dropdowns with param-backed selects (`?risk=`, `?rec=`, `?channel=`, `?sort=`); ActionQueue consumes risk/rec/sort in its filter pipeline. Zero console errors. Preview verified.
 
 ---
 
 ## NEXT TASK
 
-**U1 — Quick wins: remove TopBar search, fix URGENT overlap, wire cosmetic dropdowns**
+**U2 — Notification bell popover**
 
 Acceptance criteria:
-1. **#1 TopBar search removed** — Delete lines 45-65 of `TopBar.tsx` (the `<div className="flex-1 max-w-xl">` block with the Search input). The Bell + date remain. FilterBar's search input (`FilterBar.tsx:83-89`) is wired: add `value` controlled by `params.get("q")` with 200ms debounce `onChange` → pushes `?q=` (same pattern as the now-deleted TopBar search).
-2. **#3 URGENT badge moved inline** — Remove `absolute top-2 right-3` URGENT badge from `ActionQueue.tsx:163-167`. Instead render it inline in the badge row (next to RecBadge at line 175), as a `<span className="bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">URGENT</span>`. Remove `pr-16` from the content div (line 171) since the absolute badge no longer needs that clearance. Penalty `$` is now unobscured.
-3. **#4 Cosmetic dropdowns wired** — In `FilterBar.tsx`, replace `COSMETIC_DROPDOWNS` static array approach. Each of the 4 selects gets its own `value` + `onChange` wired to URL params: `?risk=` (risk level), `?rec=` (recommendation), `?channel=` (channel), `?sort=` (sort order). In `ActionQueue.tsx`, read those 4 params and apply to the filter pipeline: risk → riskLevel match, rec → recommendation match, channel → (no channel field on ActionItem yet, skip filtering but keep param), sort → sort the filtered array by penalty|confidence|dc instead of default urgency.
+- `TopBar.tsx` Bell button (`TopBar.tsx:17-20`): on click, open a shadcn `<Popover>` (or a manual `useState`-driven dropdown — no new libs). The popover lists the top 3 URGENT items fetched from `/api/action-items` (already used by ActionQueue via TanStack Query — reuse the same query key `["action-items"]` so no extra network call). Each row shows: urgency icon + item name + SKU + days to stockout + potential penalty. Clicking a row pushes `/?selected={id}` (same as ActionQueue's `select()` function). If no URGENT items, show "No urgent items — all clear ✓". Style: `w-80` popover, `shadow-lg`, same card tokens as the rest of the shell.
+- The red dot badge on the Bell should reflect the live URGENT count (0 → hide the dot, ≥1 → show it).
 
-Commit message: `[FRONTEND] polish: U1 — remove TopBar search, fix URGENT overlap, wire cosmetic dropdowns`
-Then update this file (NEXT TASK → U2) and run `scripts/handoff.sh`.
+Files: `web/frontend/components/TopBar.tsx` only (import `useQuery` + `getActionItems` from existing lib).
+
+Commit: `[FRONTEND] polish: U2 — notification bell popover with top-3 URGENT items`
+Then update prompt.md NEXT TASK → U3 and run `scripts/handoff.sh`.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -48,11 +47,9 @@ If additional work is needed, candidates from PLAN.md:
 
 ---
 
-## FILES IN PLAY (U1)
+## FILES IN PLAY (U2)
 
-- `web/frontend/components/TopBar.tsx` — remove search input block
-- `web/frontend/components/FilterBar.tsx` — wire search + cosmetic dropdowns to URL params
-- `web/frontend/components/ActionQueue.tsx` — move URGENT inline, remove pr-16, add rec/risk/sort filtering
+- `web/frontend/components/TopBar.tsx` — add bell popover with live URGENT items
 
 ## LOCKED / DO NOT TOUCH
 
