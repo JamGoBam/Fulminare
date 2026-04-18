@@ -23,7 +23,7 @@ function CustomerSkeleton() {
   return (
     <div className="divide-y divide-slate-100">
       {Array.from({ length: 5 }).map((_, i) => (
-        <div key={i} className="flex items-center gap-4 px-4 py-3">
+        <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3">
           <div className="h-4 w-6 rounded bg-slate-100 animate-pulse" />
           <div className="h-4 flex-1 rounded bg-slate-100 animate-pulse" />
           <div className="h-4 w-16 rounded bg-slate-100 animate-pulse" />

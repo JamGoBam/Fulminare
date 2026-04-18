@@ -66,8 +66,8 @@ function fmt(n: number) {
 function TableSkeleton() {
   return (
     <div className="p-4 space-y-2">
-      {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="h-10 rounded-lg bg-slate-100 animate-pulse" />
+      {["a", "b", "c", "d", "e"].map((k) => (
+        <div key={k} className="h-10 rounded-lg bg-slate-100 animate-pulse" />
       ))}
     </div>
   )

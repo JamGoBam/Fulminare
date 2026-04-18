@@ -63,7 +63,7 @@ function SkeletonRows() {
   return (
     <>
       {Array.from({ length: 2 }).map((_, i) => (
-        <TableRow key={i}>
+        <TableRow key={`sk-${i}`}>
           {Array.from({ length: 8 }).map((_, j) => (
             <TableCell key={j}>
               <div className="h-4 w-16 rounded bg-zinc-200 dark:bg-zinc-700 animate-pulse" />
