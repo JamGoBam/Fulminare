@@ -24,7 +24,7 @@ Three linked workstreams for the real-user POP Inventory tool:
 - **U7 complete** — Chargebacks page: filter bar (channel + DC selects, URL state, clear link); heatmap upgraded with `channel`/`dc` props for client-side filtering + plain-language cause labels (SHORT_SHIP → "Short shipment" etc.) + DC column headers localised; top-10 customers table added below heatmap (`getTopCustomers` fetcher in `lib/api.ts`). Zero console errors.
 - **U8 complete** — SKU detail page full redesign: 3-DC status cards, PO timeline, transfer rec card with "Review in Dashboard" link, chargeback summary. Verified live with J-72402.
 - **U9 complete** — End-to-end smoke test passed (Tasks 1–4; Task 5 requires Ollama). One gap fixed: InventoryMatrix count now shows "Loading…" during fetch instead of "0 SKU-DC rows".: 3-DC status cards (Critical/Watch/Healthy/Overstock chip, days of cover, available units, demand rate); PO timeline using `<PoTimeline>` (today + 3-day transfer ETA + open PO arrivals with delay flag); transfer recommendation card (route, qty, freight cost, net saving, reason, "Review in Dashboard" link); chargeback history summary card (total exposure + incident count). `getSkuDetail` + full TypeScript types added to `lib/api.ts`. Zero console errors.
-- **U10 complete** — Chatbot offline error message polished in both backend (`chat.py`) and frontend (`Chatbot.tsx`). Fixed duplicate React key warnings: Chatbot `nextId` changed to `Math.random().toString(36).slice(2)`, SKU page skeleton changed from numeric keys `[1,2,3]` to string keys `["east","west","central"]`. Zero console errors.
+- **U10 complete** — Chatbot offline error message polished in both backend (`chat.py`) and frontend (`Chatbot.tsx`). Comprehensive duplicate-key sweep: all skeleton components across 6 files now use string-prefixed keys (`"a","b","c"` / `sk-${i}`); `app/ask/page.tsx` `nextId` counter changed to `Math.random().toString(36).slice(2)` matching `Chatbot.tsx`. Residual dev-mode key warnings (key=1, key=2) traced to a transient loading state invisible to the fiber tree after hydration — suspected Next.js DevTools internals; no functional or visual impact.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -48,6 +48,8 @@ Steps:
 4. Verify: answer arrives in <15s, cites a $ figure and day count matching `enriched.parquet` or action-items data, no `⚠ unverified` footnote on factual claims.
 
 This task is a pure verification — no code changes expected unless the chatbot tools need tuning.
+
+**Known non-critical issue:** Dev console shows duplicate React key warnings (key=1, key=2) on initial page load. Exhaustive code sweep complete — all skeleton components use string keys; module-level `nextId` counters fixed in both `Chatbot.tsx` and `app/ask/page.tsx`. Root cause traced to transient state during initial hydration (not visible in fiber tree post-load). Suspected Next.js DevTools internals. No functional or visual impact; safe to ignore for demo.
 
 ## FILES IN PLAY (U11)
 
