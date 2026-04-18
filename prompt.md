@@ -20,6 +20,7 @@ Three linked workstreams for the real-user POP Inventory tool:
 - **U3 complete** — #5: `recommended` prop on both comparison cards; Transfer card blue when Transfer Now is recommended, slate when not (and vice versa for Inbound card). #6: `ActionStatusProvider` + `useActionStatus` context with sessionStorage persistence; 4 action buttons update shared state; confirmation banner in panel; status chip + opacity + sink-to-bottom in ActionQueue. #7: "Explain in chat ↗" button under reasoning bullets calls `openChatbot()` with prefilled message. Zero console errors verified on fresh server start.
 - **U4 complete** — Draggable non-modal chatbot panel: replaced `<Sheet>` with fixed-position `div bottom-6 right-6`, pointer-event drag with viewport clamping, minimize/maximize via `ChevronDown`/`ChevronUp`, `X` close, FAB hidden when open. All SSE streaming logic intact.
 - **U5 complete** — Analytics page inline rec panel: `?selected=` URL state, `RecommendationPanel` embedded in 2-column layout alongside heatmap + top-risk SKUs; clicking a row in the top-risk table sets `?selected=`.
+- **U6 complete** — InventoryMatrix: 3 saved-view presets (My morning triage / East DC watchlist / Overstock candidates) in left filter rail, active state highlighted blue when filters match. Every table row is clickable — routes to `/?selected=<id>` when action item exists, else `/sku/<sku>`. Action-cell stopPropagation preserved.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -32,31 +33,7 @@ ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
 
 ## NEXT TASK
 
-**U6 — InventoryMatrix: saved views + row-click drill-through**
-
-One file only: `web/frontend/components/InventoryMatrix.tsx`
-
-**#1 — Saved views panel** (add below the DC selector in the left filter rail)
-- Add a `<div>` section labeled "Saved Views" (same style as existing section headers: `text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2`).
-- 3 built-in presets as clickable buttons (`w-full text-left text-xs px-3 py-2 rounded-lg border`):
-  - "My morning triage" → `pushParams({ status: "Critical,Watch", dc: null })`
-  - "East DC watchlist" → `pushParams({ status: "Critical,Watch", dc: "DC_EAST" })`
-  - "Overstock candidates" → `pushParams({ status: "Overstock", dc: null })`
-- Active preset: highlight with `border-blue-200 bg-blue-50 text-blue-700`; inactive: `border-slate-200 bg-white text-slate-600 hover:bg-slate-50`.
-- A preset is "active" when the current URL params exactly match its filter values (compare status + dc params).
-- No localStorage in v1 — presets are read-only shortcuts, not saveable views (keep it simple).
-
-**#2 — Row-click navigation**
-- Make each `<tr>` in the table body a navigation target. On click: if `actionItem` exists for that row → `router.push("/?selected=" + actionItem.id)`; otherwise → `router.push("/sku/" + row.sku)`.
-- Add `cursor-pointer` to the `<tr>` className and an `onClick` handler.
-- The action button in the last column should still be clickable independently (stop event propagation on that cell).
-
-Commit: `[FRONTEND] polish: U6 — inventory saved views + row-click navigation`
-Then update prompt.md NEXT TASK → U7 and run `scripts/handoff.sh`.
-
----
-
-## NEXT TASK (after U6)
+**U7 — Chargebacks page: filter bar + top-customers list**
 
 **U7 — Chargebacks page: filter bar + top-customers list**
 
@@ -88,9 +65,11 @@ Files: `web/frontend/app/chargebacks/page.tsx` and `web/frontend/components/Char
 Commit: `[FRONTEND] polish: U7 — chargebacks filter bar, plain labels, top-customers table`
 Then update prompt.md NEXT TASK → U8 (or declare done if no more polish needed) and run `scripts/handoff.sh`.
 
-## FILES IN PLAY (U6)
+## FILES IN PLAY (U7)
 
-- `web/frontend/components/InventoryMatrix.tsx` — saved views + row-click
+- `web/frontend/app/chargebacks/page.tsx` — filter bar + top-customers table
+- `web/frontend/components/ChargebackHeatmap.tsx` — channel/dc props + plain labels
+- `web/frontend/lib/api.ts` — add `getTopCustomers` fetcher
 
 ## LOCKED / DO NOT TOUCH
 
@@ -106,9 +85,9 @@ Then update prompt.md NEXT TASK → U8 (or declare done if no more polish needed
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U5 are complete. Execute NEXT TASK (U6 — InventoryMatrix saved views + row-click) per the spec in prompt.md.
+Note: U1–U6 are complete. Execute NEXT TASK (U7 — Chargebacks filter bar + top-customers) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U6 is done, update prompt.md NEXT TASK → U7 and run scripts/handoff.sh.
+When U7 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
