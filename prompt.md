@@ -15,62 +15,69 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards (Export Chargeback Report / Transfer Summary / OTIF Scorecard) with icons + Download/View stub buttons; Available Reports table (5 hardcoded rows: name, frequency, last generated, format, download button). `app/settings/page.tsx`: Preferences card (3 toggle rows with functional `useState` toggles); DC Labels card (DC_EAST/WEST/CENTRAL → display names, read-only with muted note); Integrations card (WMS Connected green, ERP Connected green, EDI Pending amber). Both pages use standard card shell, sidebar nav highlights active route. Zero TS errors, zero console errors, verified in preview.
+- Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards + Available Reports table (5 rows). `app/settings/page.tsx`: Preferences toggles, DC Labels read-only, Integrations with status badges. Zero errors.
+- Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=` URL param, × clear button (preserves other params). `FilterBar.tsx`: quick-filter pills wired to `?status=` (comma-separated), DC dropdown wired to `?dc=`; cosmetic dropdowns unchanged; `useSearchParams` reads params for active state. `ActionQueue.tsx`: reads `?q=` (filters by sku/itemName), `?dc=` (filters by atRiskDC), `?status=` (OR logic across PILL_FILTER map); `EmptyState` component (Package icon, "No items match"). All params coexist correctly; × clears only `?q=` leaving other params intact. Verified in preview — zero TS errors, zero console errors.
 - Backend still has pre-existing P11 blocker (`chat.py` imports `anthropic`); all frontend work is unaffected.
 
 ---
 
 ## NEXT TASK
 
-**F8 — Filter + search behavior** — Wire `FilterBar` pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms.
+**F9 — Polish pass** — Active-nav aria-labels, keyboard nav, colorblind-safe chips, empty states, `MetricTooltip` glossary expansion to ~25 terms. Merges with PLAN.md P14.
 
 ### What to build
 
-1. **FilterBar → Action Queue wiring** (`app/page.tsx` / `components/FilterBar.tsx` / `components/ActionQueue.tsx`):
-   - FilterBar pills (Critical / Watch / Transfer / Resolved) push `?status=` to the URL via `useRouter().push` (shallow).
-   - Action Queue reads `?status=` from `useSearchParams()` and filters its list client-side.
-   - Active pill gets `bg-blue-600 text-white`; inactive stays default slate.
-   - DC dropdown (if present in FilterBar) pushes `?dc=DC_EAST|DC_WEST|DC_CENTRAL|all`.
+1. **Active nav aria-labels** (`Sidebar.tsx`) — add `aria-current="page"` to the active nav link.
 
-2. **Global search** (TopBar `Search` input):
-   - Debounced 200 ms — push `?q=<term>` to URL on change.
-   - Action Queue filters by `itemName` or `sku` containing the query (case-insensitive).
-   - Clear button (×) resets `?q=`.
+2. **Keyboard navigation** — Action Queue rows should be focusable and respond to Enter/Space to select (same as click).
 
-3. **URL-state persistence**: navigating away and back restores the same filters (already works if URL params are used — just verify).
+3. **Colorblind-safe status chips** — add icons alongside color chips in `InventoryMatrix.tsx` so status is not conveyed by color alone:
+   - Critical → `AlertTriangle` icon
+   - Low → `Clock` icon
+   - Overstock → `TrendingUp` icon
+   - Healthy → `CheckCircle` icon
 
-4. **Empty state**: if filtered list is empty, show a centered card: icon `Package`, heading "No items match", subtext "Try clearing filters or adjusting your search."
+4. **Empty states** — add empty states to:
+   - Inventory page (no rows after filter)
+   - Analytics page (if data is empty)
+
+5. **MetricTooltip glossary** (`MetricTooltip.tsx`) — expand to ~25 terms covering all metrics used across the app (Days of Supply, Imbalance Score, Transfer Cost, Chargeback Risk Score, OTIF Risk, Demand Rate, etc.).
+
+6. **OnboardingTour stub** (`components/OnboardingTour.tsx`) — a simple "first visit" banner (dismissible, sessionStorage-persisted): "Welcome to POP Operations Hub — click any Action Queue row to see a transfer recommendation."
 
 ### Backend
 No new endpoints needed.
 
 ### Acceptance criteria
-1. Clicking a FilterBar pill adds `?status=` to URL and Action Queue shows only matching rows.
-2. Typing in search box debounces 200 ms, pushes `?q=`, and Action Queue filters by name/SKU.
-3. Clearing search or pills restores full list.
-4. Empty state renders when no rows match.
-5. Zero TypeScript errors, zero console errors.
+1. Sidebar active link has `aria-current="page"`.
+2. Action Queue rows keyboard-navigable (Tab + Enter/Space).
+3. InventoryMatrix status chips show icon + color.
+4. MetricTooltip has ≥20 terms.
+5. OnboardingTour banner appears on first visit, dismisses on click.
+6. Zero TypeScript errors, zero console errors.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/frontend/app/page.tsx` (Dashboard — wires FilterBar → ActionQueue)
-- `web/frontend/components/FilterBar.tsx` (add URL push)
-- `web/frontend/components/ActionQueue.tsx` (read URL params, filter, empty state)
-- `web/frontend/components/TopBar.tsx` (debounced search input → URL)
+- `web/frontend/components/Sidebar.tsx` (aria-current)
+- `web/frontend/components/ActionQueue.tsx` (keyboard nav)
+- `web/frontend/components/InventoryMatrix.tsx` (icon+color chips)
+- `web/frontend/components/MetricTooltip.tsx` (expand glossary)
+- `web/frontend/components/OnboardingTour.tsx` (new — first-visit banner)
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- `components/Sidebar.tsx`, `app/layout.tsx` — F1 deliverables
+- `app/layout.tsx` — F1 deliverable
 - `components/KpiCard.tsx` — F2 deliverable
 - `web/api/routes/action_items.py` — F3 deliverable
 - `components/RecommendationPanel.tsx`, `components/ActionComparisonCard.tsx`, `components/PoTimeline.tsx` — F4 deliverables
-- `components/InventoryMatrix.tsx`, `app/inventory/page.tsx` — F5 deliverables
+- `app/inventory/page.tsx` — F5 deliverable
 - `app/analytics/page.tsx` — F6 deliverable
 - `app/reports/page.tsx`, `app/settings/page.tsx` — F7 deliverables
+- `components/TopBar.tsx`, `components/FilterBar.tsx` — F8 deliverables
 
 ## BLOCKERS
 
@@ -80,9 +87,9 @@ No new endpoints needed.
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (F8 — Filter + search behavior) per the spec in prompt.md.
+Execute NEXT TASK (F9 — Polish pass) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When F8 is done, update prompt.md NEXT TASK to F9, then run scripts/handoff.sh.
+When F9 is done, update prompt.md NEXT TASK to P11 (chatbot migration), then run scripts/handoff.sh.
 ```
 
 ---
@@ -100,8 +107,8 @@ When F8 is done, update prompt.md NEXT TASK to F9, then run scripts/handoff.sh.
 | F5 | Inventory matrix | ✅ Done | `InventoryMatrix.tsx`, `/inventory` page, `GET /api/inventory/summary`, filter rail + URL state + pagination |
 | F6 | Analytics | ✅ Done | `app/analytics/page.tsx` — 4 KPI tiles + `ChargebackHeatmap` + CSS bar chart + top-risk SKUs table |
 | F7 | Reports + Settings stubs | ✅ Done | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |
-| F8 | Filter + search behavior | 🔲 Next | Wire FilterBar pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms |
-| F9 | Polish pass | 🔲 | Active-nav aria-labels, keyboard nav, colorblind-safe chips, empty states. Merges with PLAN.md P14. |
+| F8 | Filter + search behavior | ✅ Done | Wire FilterBar pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms |
+| F9 | Polish pass | 🔲 Next | Active-nav aria-labels, keyboard nav, colorblind-safe chips, empty states. Merges with PLAN.md P14. |
 
 ---
 
