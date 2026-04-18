@@ -2,14 +2,15 @@
 
 import Link from "next/link"
 import { usePathname } from "next/navigation"
-import { LayoutDashboard, Package, TrendingUp, FileText, Settings } from "lucide-react"
+import { LayoutDashboard, Package, TrendingUp, FileText, Settings, MessageSquare } from "lucide-react"
 
 const navItems = [
   { icon: LayoutDashboard, label: "Dashboard", href: "/" },
-  { icon: Package, label: "Inventory", href: "/inventory" },
-  { icon: TrendingUp, label: "Analytics", href: "/analytics" },
-  { icon: FileText, label: "Reports", href: "/reports" },
-  { icon: Settings, label: "Settings", href: "/settings" },
+  { icon: Package,         label: "Inventory",  href: "/inventory" },
+  { icon: TrendingUp,      label: "Analytics",  href: "/analytics" },
+  { icon: FileText,        label: "Reports",    href: "/reports" },
+  { icon: MessageSquare,   label: "Ask",        href: "/ask" },
+  { icon: Settings,        label: "Settings",   href: "/settings" },
 ]
 
 export function Sidebar() {
