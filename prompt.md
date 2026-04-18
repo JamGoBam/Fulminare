@@ -15,57 +15,61 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- Completed **F1** — `Sidebar.tsx`, `TopBar.tsx`, root layout shell, route stubs (`/inventory`, `/analytics`, `/reports`, `/settings`), `lib/types.ts` with `ActionItem` shape.
-- Completed **F2** — `KpiCard.tsx`, `FilterBar.tsx` (toggling quick-filter pills), 4-KPI-card + filter bar + 2-column Dashboard shell. "Urgent Actions" and "Total Chargeback Risk" live from `/api/summary` + `/api/recommendations/alerts`; others show `—` until P3 enriched data.
-- Completed **F3** — `GET /api/action-items` backend endpoint (joins `transfers_computed` + `skus` + `open_po` + `inventory`; returns `ActionItem[]`); refactored `ActionQueue.tsx` (URGENT badge on top-3 High rows, row accent border by `daysUntilStockout`, URL-state selection via `?selected=<id>`, graceful error/empty states). Backend endpoint verified directly with Python. Frontend renders skeleton + graceful error when backend offline.
-- Merged `FIGMA_PROMPT.md` into this file; ran seed ingest + pipeline to generate all parquet files in `data/processed/`.
+- Completed **F4** — `RecommendationPanel.tsx` (reads `?selected` from URL, renders item header + summary sentence + 2 comparison cards + reasoning bullets + timeline + 4 stub action buttons), `ActionComparisonCard.tsx` (Transfer Now / Wait for Inbound cards with confidence bars, Escalate edge case), `PoTimeline.tsx` (CSS-only horizontal dot timeline). Wired into `app/page.tsx` replacing placeholder. Zero TypeScript errors; empty state renders correctly in preview; TS type-check passes clean.
+- Backend still has pre-existing P11 blocker (`chat.py` imports `anthropic` which is not installed); all other frontend work is unaffected.
 
 ---
 
 ## NEXT TASK
 
-**F4 — Recommendation Panel live** — driven by `?selected=<id>` URL param; full 2-card decision comparison + reasoning + Evidence & Timeline.
+**F5 — Inventory Matrix** — `/inventory` page with 4 summary cards + filterable SKU matrix table.
 
 ### What to build
 
-New component `components/RecommendationPanel.tsx`:
-1. Reads `?selected` from `useSearchParams()`. If absent → empty state: "Select an item from the Action Queue to see the recommendation."
-2. Finds the selected `ActionItem` from the already-loaded `["action-items"]` query (no extra fetch).
-3. **Header**: item name, SKU, at-risk DC.
-4. **Summary sentence** (verbatim):
-   - Transfer Now → `Execute immediate transfer to prevent {daysUntilStockout}-day stockout and avoid {potentialPenalty} in penalties.`
-   - Wait → `Monitor inbound shipment. Current trajectory shows arrival before stockout with minimal risk exposure.`
-   - Escalate → `Critical situation requiring executive decision. No standard transfer options available.`
-5. **2-card comparison** (`ActionComparisonCard.tsx`, new):
-   - Option A — Transfer Now: `sourceDC`, `unitsAvailable`, `leadTime`, `estimatedArrival`, `cost`, `postTransferHealth`, confidence bar (`bg-blue-500` fill at `{confidence}%`).
-   - Option B — Wait for Inbound: `poEta`, `delayRisk`, `complianceFlags`, `stockoutWindow`, `penaltyRisk`, confidence bar.
-   - Confidence bar: `w-full bg-slate-200 rounded-full h-2` with colored fill.
-   - Escalate edge case: `sourceDC === "None available"` / `unitsAvailable === 0` must not crash — show "No transfer source available"; confidence 0% not empty.
-6. **"Why This Recommendation"** — `reasoning[]` as bullet list.
-7. **Evidence & Timeline** (`PoTimeline.tsx`, new) — simple horizontal flex timeline: past-PO blocks → today marker → open-PO ETA block. CSS-only (no Recharts needed for this). Reused in `/sku/[sku]` (F9).
-8. **Action buttons** (stubs — log only, no mutation):
-   - "Approve Transfer", "Wait and Monitor", "Escalate", "Assign Owner" → `console.log("Marked for WMS review:", item.id)`.
+Page: `app/inventory/page.tsx` (stub exists from F1 — replace its body).
 
-Wire into `app/page.tsx` — replace Recommendation Panel placeholder with `<RecommendationPanel />`.
+1. **4 summary cards** (top row, reuse `KpiCard`):
+   - Total SKUs | Critical SKUs (red) | Watch SKUs (amber) | Balanced SKUs (green)
+   - Pull counts from `GET /api/inventory/imbalance` (returns top-N imbalanced) and a new `GET /api/inventory/summary` (build if missing — count rows by status).
+   - If backend offline → show `—` placeholders (same pattern as dashboard).
+
+2. **Inventory matrix table** — refactor `components/ImbalanceTable.tsx` into `components/InventoryMatrix.tsx`:
+   - Columns: SKU · Item Name · DC · Status chip · Days of cover · At-risk $ · Recommendation CTA
+   - Status chip colors: `Critical` = red-100/red-700, `Watch` = amber-100/amber-700, `Healthy` = green-100/green-700, `Overstock` = blue-100/blue-700
+   - "Days of cover" tooltip via existing `MetricTooltip` (term: `days_of_cover`)
+   - Recommendation CTA = small badge button matching rec badge colors; clicking navigates to `/?selected=<id>` (reuses the dashboard selection)
+   - Sort: default by `daysUntilStockout` asc (most urgent first)
+   - Pagination: 25 rows per page with Prev/Next buttons (no virtualization needed at seed scale)
+
+3. **Left-rail filters** (sticky, `w-64`):
+   - Status checkboxes: Critical ✓, Watch ✓, Healthy ✗, Overstock ✗ (defaults)
+   - DC selector: All / DC East / DC West / DC Central
+   - Search input: debounced 200ms, matches SKU code and item name
+   - All filter state serialized into URL query params: `?status=Critical,Watch&dc=DC_EAST&q=J-72`
+   - "Clear filters" link resets to defaults
+
+4. **Empty state**: "No SKUs match these filters. Try removing a Status filter." (per PLAN.md §3.4)
+
+### Backend
+- `GET /api/inventory/imbalance` already exists.
+- New `GET /api/inventory/summary` endpoint: `{total, critical, watch, healthy, overstock}` — add to `web/api/routes/inventory.py` if not already there. Count rows from `data/processed/enriched.parquet` (if it exists) or fall back to raw `inventory.csv`.
 
 ### Acceptance criteria
-
-1. Clicking an Action Queue row populates the panel with correct item data.
-2. All 3 recommendation types render the correct summary sentence.
-3. Both comparison cards render with confidence bars.
-4. Reasoning bullets display.
-5. Evidence & Timeline renders (even simple CSS layout).
-6. Buttons log to console, no mutations.
-7. Zero console errors.
+1. `/inventory` loads with 4 summary cards (values or `—` gracefully).
+2. Matrix table renders all seed SKUs (25 rows across 3 DCs = 75 rows, paginated).
+3. Status chips use correct colors.
+4. Clicking a Recommendation CTA navigates to `/?selected=<id>` and the dashboard panel opens.
+5. Filters update the table and serialize to URL.
+6. Zero TypeScript errors, zero console errors.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/frontend/components/RecommendationPanel.tsx` (new)
-- `web/frontend/components/ActionComparisonCard.tsx` (new)
-- `web/frontend/components/PoTimeline.tsx` (new)
-- `web/frontend/app/page.tsx` (replace Recommendation Panel placeholder)
+- `web/frontend/app/inventory/page.tsx` (replace stub)
+- `web/frontend/components/InventoryMatrix.tsx` (new, replaces `ImbalanceTable.tsx`)
+- `web/api/routes/inventory.py` (add `GET /api/inventory/summary` if missing)
+- `web/frontend/lib/api.ts` (add `getInventorySummary()` fetcher)
 
 ## LOCKED / DO NOT TOUCH
 
@@ -74,6 +78,7 @@ Wire into `app/page.tsx` — replace Recommendation Panel placeholder with `<Rec
 - `components/Sidebar.tsx`, `components/TopBar.tsx`, `app/layout.tsx` — F1 deliverables
 - `components/KpiCard.tsx`, `components/FilterBar.tsx` — F2 deliverables
 - `components/ActionQueue.tsx`, `web/api/routes/action_items.py` — F3 deliverables
+- `components/RecommendationPanel.tsx`, `components/ActionComparisonCard.tsx`, `components/PoTimeline.tsx` — F4 deliverables
 
 ## BLOCKERS
 
@@ -83,9 +88,9 @@ Wire into `app/page.tsx` — replace Recommendation Panel placeholder with `<Rec
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (F4 — Recommendation Panel live) per the spec in prompt.md.
+Execute NEXT TASK (F5 — Inventory Matrix) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When F4 is done, update prompt.md NEXT TASK to F5, then run scripts/handoff.sh.
+When F5 is done, update prompt.md NEXT TASK to F6, then run scripts/handoff.sh.
 ```
 
 ---
@@ -99,8 +104,8 @@ When F4 is done, update prompt.md NEXT TASK to F5, then run scripts/handoff.sh.
 | F1 | App shell + sidebar + top bar + routes | ✅ Done | `Sidebar.tsx`, `TopBar.tsx`, layout shell, `/inventory` `/analytics` `/reports` `/settings` stubs, `lib/types.ts` |
 | F2 | Dashboard shell + KPI cards + filter bar | ✅ Done | `KpiCard.tsx`, `FilterBar.tsx`, 2-column placeholder layout, live KPI data from `/api/summary` + `/api/recommendations/alerts` |
 | F3 | Action Queue live | ✅ Done | `/api/action-items` endpoint, refactored `ActionQueue.tsx`, URGENT badges, URL-state selection, accent borders |
-| F4 | Recommendation Panel live | 🔲 Next | `RecommendationPanel.tsx`, `ActionComparisonCard.tsx`, `PoTimeline.tsx`, driven by `?selected` param |
-| F5 | Inventory matrix | 🔲 | `/inventory` — 4 summary cards + matrix table, refactor `ImbalanceTable.tsx` to new columns |
+| F4 | Recommendation Panel live | ✅ Done | `RecommendationPanel.tsx`, `ActionComparisonCard.tsx`, `PoTimeline.tsx`, driven by `?selected` param |
+| F5 | Inventory matrix | 🔲 Next | `/inventory` — 4 summary cards + matrix table, refactor `ImbalanceTable.tsx` to new columns |
 | F6 | Analytics | 🔲 | `/analytics` — 4 KPI tiles + chargebacks heatmap + penalty charts + top-risk SKUs |
 | F7 | Reports + Settings stubs | 🔲 | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |
 | F8 | Filter + search behavior | 🔲 | Wire FilterBar pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms |
