@@ -24,6 +24,7 @@ Three linked workstreams for the real-user POP Inventory tool:
 - **U7 complete** — Chargebacks page: filter bar (channel + DC selects, URL state, clear link); heatmap upgraded with `channel`/`dc` props for client-side filtering + plain-language cause labels (SHORT_SHIP → "Short shipment" etc.) + DC column headers localised; top-10 customers table added below heatmap (`getTopCustomers` fetcher in `lib/api.ts`). Zero console errors.
 - **U8 complete** — SKU detail page full redesign: 3-DC status cards, PO timeline, transfer rec card with "Review in Dashboard" link, chargeback summary. Verified live with J-72402.
 - **U9 complete** — End-to-end smoke test passed (Tasks 1–4; Task 5 requires Ollama). One gap fixed: InventoryMatrix count now shows "Loading…" during fetch instead of "0 SKU-DC rows".: 3-DC status cards (Critical/Watch/Healthy/Overstock chip, days of cover, available units, demand rate); PO timeline using `<PoTimeline>` (today + 3-day transfer ETA + open PO arrivals with delay flag); transfer recommendation card (route, qty, freight cost, net saving, reason, "Review in Dashboard" link); chargeback history summary card (total exposure + incident count). `getSkuDetail` + full TypeScript types added to `lib/api.ts`. Zero console errors.
+- **U10 complete** — Chatbot offline error message polished in both backend (`chat.py`) and frontend (`Chatbot.tsx`). Fixed duplicate React key warnings: Chatbot `nextId` changed to `Math.random().toString(36).slice(2)`, SKU page skeleton changed from numeric keys `[1,2,3]` to string keys `["east","west","central"]`. Zero console errors.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -36,26 +37,23 @@ ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
 
 ## NEXT TASK
 
-**U10 — Chatbot smoke test + Ollama verification**
+**U11 — Chatbot live verification (requires Ollama)**
 
-U1–U9 are complete. The only unverified task is Task 5 from PLAN.md success criteria: chatbot must answer "What should I do first today?" with grounded numbers in <15s, no API key required.
+U1–U10 are complete. The only remaining unverified item is Task 5 from PLAN.md success criteria: chatbot must answer "What should I do first today?" with grounded numbers in <15s, no API key required.
 
 Steps:
 1. Confirm `ollama serve` is running and `qwen2.5:7b-instruct` is pulled.
 2. Start backend on :8000 and frontend on :3000.
 3. Open chatbot FAB on dashboard; ask "What should I do first today?"
 4. Verify: answer arrives in <15s, cites a $ figure and day count matching `enriched.parquet` or action-items data, no `⚠ unverified` footnote on factual claims.
-5. If the chatbot is offline (Ollama not running), verify the offline error message renders correctly in the panel.
 
-If the offline error path needs polish, fix it in `web/frontend/components/Chatbot.tsx`.
+This task is a pure verification — no code changes expected unless the chatbot tools need tuning.
 
-Commit: `[META] prompt: mark U9 complete, define U10 chatbot verification`
-Then run `scripts/handoff.sh`.
+## FILES IN PLAY (U11)
 
-## FILES IN PLAY (U10)
-
-- `web/frontend/components/Chatbot.tsx` — offline error path polish if needed
-- `web/api/routes/chat.py` — verify Ollama offline error handling
+- `web/api/chat_tools.py` — tool implementations (read-only DB queries)
+- `web/api/chat_prompts.py` — system prompt
+- `web/frontend/components/Chatbot.tsx` — UI (no changes expected)
 
 ## LOCKED / DO NOT TOUCH
 
