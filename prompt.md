@@ -15,9 +15,9 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- **U1–U10 complete** — All frontend polish merged to main: FilterBar/search wiring, bell popover, conditional card color, action-button state, Explain-in-chat, draggable chatbot panel, analytics inline rec panel.
-- **U11 complete** — Chatbot live verification: Ollama installed at `/Applications/Ollama.app`; `qwen2.5:3b-instruct` pulled and tested; full E2E chat verified in browser (`/ask` page, FAB panel, SSE streaming, tool-call pill display, no API key). Two validator bugs fixed: int-vs-float false positives (`0` vs `0.0`) and dollar-rounding false positives (`$115,405.87` → `$115,406`). 59 pytest passing.
-- **Blocker note** — Only `qwen2.5:3b-instruct` is available locally; `qwen2.5:7b-instruct` still needs `ollama pull qwen2.5:7b-instruct` (~4.7 GB). The 7b model is significantly more accurate on math/numbers. Pull before running P16 success-criteria verification.
+- **U1–U11 complete** — All frontend polish merged; chatbot live (Ollama `qwen2.5:3b-instruct`); two validator bugs fixed (int-vs-float, dollar-rounding); 59 pytest passing.
+- **U12 complete** — All 5 P16 success criteria verified in browser: (1) dashboard action queue shows J-72402 critical; (2) SKU panel shows Transfer Now with $115,406 net saving; (3) inventory filter DC=East+Critical works; (4) chargebacks page updated with top-customer (MDO100A) and top-cause (Missed delivery window) ranked tables; (5) chatbot answers "Why is J-72402 critical?" correctly citing 12 DoS and $115,405 penalty, no ⚠ warning.
+- **7b model pull** — `qwen2.5:7b-instruct` pull was started but may not be complete (~4.7 GB). Verify with `/Applications/Ollama.app/Contents/Resources/ollama list` before using in production.
 
 To start the full stack:
 ```bash
@@ -32,37 +32,36 @@ pnpm --dir web/frontend dev                                    # frontend → ht
 
 ## NEXT TASK
 
-**U12 — Pull qwen2.5:7b-instruct + P16 end-to-end success-criteria verification**
+**U13 — Pull qwen2.5:7b-instruct + demo preparation**
 
-Acceptance criteria (from PLAN.md §6):
+All 5 P16 success criteria are now green. The remaining work before the HTC 2026 demo:
 
-**Step 0 — Pull the 7b model** (one-time, ~4.7 GB):
+**Step 0 — Confirm 7b model available:**
 ```bash
+/Applications/Ollama.app/Contents/Resources/ollama list
+# If qwen2.5:7b-instruct is not listed, pull it:
 /Applications/Ollama.app/Contents/Resources/ollama pull qwen2.5:7b-instruct
 ```
-Then restart the backend without `OLLAMA_MODEL` override (defaults to 7b).
 
-**Step 1–5 — Run each success-criteria task via preview_* MCP tools:**
+**Step 1 — Run full stack with 7b model and re-verify criterion 5:**
+```bash
+/Applications/Ollama.app/Contents/Resources/ollama serve &
+uvicorn web.api.main:app --reload --port 8000   # no OLLAMA_MODEL override → defaults to 7b
+pnpm --dir web/frontend dev
+```
+Then repeat criterion 5: ask "Why is J-72402 critical?" on `/ask`. Pass: no ⚠ banner, numbers cited correctly.
 
-1. **Today triage** — navigate to `/`, look for the action queue. Does it show critical SKUs with $ risk? Does the top row surface J-72402 or F-12998? Pass: hero copy + $ figure + two action options visible within 30s.
-2. **Find J-72402** — type "J-72402" in top-bar search, land on SKU detail / recommendation panel. Read recommendation. Pass: correct Transfer/Wait shown with $ tradeoff < 2 min.
-3. **East DC critical filter** — navigate to `/inventory`, apply Status=Critical + DC=East filter (or DC_EAST). Pass: URL contains filter params, list shows only East DC critical rows.
-4. **Chargebacks** — navigate to `/chargebacks` or `/analytics`, filter/read top cause + top customer. Pass: correct customer and cause code shown.
-5. **Chatbot SKU question** — on `/ask`, type "Why is J-72402 critical?". Pass: answer in <20s, cites days-of-supply and $ penalty from tool result, no `⚠ unverified` banner.
+**Step 2 — Demo dry-run** using `demo/scenario.md` walkthrough script. Tighten copy if anything feels rough under time pressure.
 
-**Fix any gaps found during the run.** The 5 tasks map to real UI components — if a task fails, trace the component and fix it before moving on.
+**Step 3 — Final commit + push to main.**
 
-**Files likely in play:** dashboard/today page, `/inventory` filters, `/chargebacks` or `/analytics` page, `Chatbot.tsx` / `/ask`.
+Commit: `[DEMO] prep: U13 — 7b model verified + demo dry-run`
 
-Commit: `[FRONTEND] verify: U12 — P16 success criteria all passing`
-Then update prompt.md NEXT TASK and run `scripts/handoff.sh`.
+## FILES IN PLAY (U13)
 
-## FILES IN PLAY (U12)
-
-- Dashboard / today page — success criteria #1
-- `web/frontend/app/inventory/page.tsx` — success criteria #3
-- `web/frontend/app/chargebacks/page.tsx` or `analytics/page.tsx` — success criteria #4
-- `web/frontend/app/ask/page.tsx`, `web/api/chat_validator.py` — success criteria #5
+- `demo/scenario.md` — walkthrough script for demo dry-run
+- `web/api/main.py` — ensure default model is `qwen2.5:7b-instruct`
+- `web/frontend/app/ask/page.tsx` — chatbot UI (re-verify with 7b)
 
 ## LOCKED / DO NOT TOUCH
 
@@ -71,16 +70,16 @@ Then update prompt.md NEXT TASK and run `scripts/handoff.sh`.
 
 ## BLOCKERS
 
-- `qwen2.5:7b-instruct` not yet pulled locally (only 3b available). Pull before running success-criteria #5. Without 7b the chatbot may hallucinate numbers (3b is less accurate on math).
+- `qwen2.5:7b-instruct` pull may still be in progress (~4.7 GB). Check with `ollama list` before running.
 
 ## QUICK-RESUME PROMPT
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U11 are complete and merged to main. Execute NEXT TASK (U12 — P16 success-criteria verification) per the spec in prompt.md.
-Requires: ollama serve running and qwen2.5:7b-instruct pulled locally.
+Note: U1–U12 are complete and merged. Execute NEXT TASK (U13 — 7b model verification + demo dry-run) per the spec in prompt.md.
+Requires: ollama serve running. Pull qwen2.5:7b-instruct if not yet available.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U12 is done, update prompt.md and run scripts/handoff.sh.
+When U13 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
