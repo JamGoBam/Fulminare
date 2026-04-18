@@ -15,60 +15,72 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- Completed **F4** — `RecommendationPanel.tsx`, `ActionComparisonCard.tsx`, `PoTimeline.tsx`. Wired into `app/page.tsx`. Zero TypeScript errors, verified in preview.
 - Completed **F5** — `InventoryMatrix.tsx` (left-rail filters with status checkboxes + DC selector + debounced search, URL-serialized filter state, paginated table 25 rows/page, status chips, Days-of-cover with MetricTooltip, At-risk $ + Recommendation CTA joined from action-items cache). `app/inventory/page.tsx` rebuilt with 4 KPI cards + matrix. `GET /api/inventory/summary` endpoint added to `inventory.py` (falls back imbalance→enriched). `getInventorySummary` + `getInventoryImbalance` added to `lib/api.ts`. Zero TypeScript errors, verified in preview.
+- Completed **F6** — `app/analytics/page.tsx` rebuilt: 4 KPI tiles (Annual Chargeback Exposure, System-Avoidable Savings, % Reduction, Top Cause) from `/api/summary` + `/api/chargebacks/top-causes`. CSS-only `CauseBarChart` (Recharts removed — SSR crash in Next.js 16). Reused `ChargebackHeatmap`. Top-risk SKUs table (top 5 by `potentialPenalty` from action-items cache). `getTopCauses()` added to `lib/api.ts`. Key fix: removed `<Suspense>` wrapper (AnalyticsContent doesn't use `useSearchParams()` — wrapper caused permanent fallback state). Zero TypeScript errors, verified in preview.
 - Backend still has pre-existing P11 blocker (`chat.py` imports `anthropic`); all frontend work is unaffected.
 
 ---
 
 ## NEXT TASK
 
-**F6 — Analytics page** — `/analytics` route with 4 KPI tiles + chargebacks heatmap + penalty charts + top-risk SKUs table.
+**F7 — Reports + Settings stubs** — `/reports` and `/settings` routes with real content cards (not empty stubs).
 
 ### What to build
 
-Page: `app/analytics/page.tsx` (stub exists — replace body).
+#### Reports page (`app/reports/page.tsx`)
 
-1. **4 KPI tiles** (reuse `KpiCard`):
-   - Annual Chargeback Exposure (`manual_annual_penalty` from `/api/summary`)
-   - System-Avoidable Savings (`system_avoidable_annual` from `/api/summary`)
-   - % Reduction (`pct_reduction`)
-   - Top Cause (top cause code by $ from `/api/chargebacks/top-causes?n=1`)
-   - Graceful `—` when backend offline.
+1. **Quick-action cards** (2–3 cards, horizontal row):
+   - "Export Chargeback Report" — icon `FileText`, subtitle "CSV · last 90 days", button "Download"
+   - "Transfer Summary" — icon `ArrowRight`, subtitle "Pending transfers this week", button "View"
+   - "OTIF Scorecard" — icon `TrendingUp`, subtitle "On-time in-full by DC", button "View"
+   - Buttons are stubs — log to console, optionally show a toast "Feature coming soon"
 
-2. **Chargeback heatmap** — reuse existing `ChargebackHeatmap.tsx` (already built). Wire it to `/api/chargebacks/summary` data. The heatmap shows cause codes × DCs with cell intensity = $ exposure. Plain-language cause labels: `SHORT_SHIP` → "Short shipment", `LATE_DELIVERY` → "Late delivery", `DAMAGE` → "Damaged goods", `MISSED_WINDOW` → "Missed window". TPR excluded.
+2. **Available Reports list** — a card containing a simple table or list:
+   - Columns: Report Name · Frequency · Last Generated · Format · Action (Download button)
+   - 4–6 hardcoded rows (no API calls needed; this is purely a UI stub):
+     - Chargeback Detail · Weekly · Apr 14, 2026 · CSV
+     - Inventory Imbalance · Daily · Apr 18, 2026 · CSV
+     - Transfer Log · Weekly · Apr 14, 2026 · XLSX
+     - OTIF Scorecard · Monthly · Apr 1, 2026 · PDF
+     - Supplier Lead Time · Monthly · Apr 1, 2026 · PDF
+   - All Download buttons log to console
 
-3. **Top-cause bar chart** (Recharts `BarChart`) using data from `GET /api/chargebacks/top-causes?n=5`:
-   - Horizontal bars: cause code (plain language) vs $ exposure
-   - Color: `fill="#ef4444"` (red-500)
-   - Responsive container, no legend, minimal axes
+#### Settings page (`app/settings/page.tsx`)
 
-4. **Top-risk SKUs** — a small 5-row table using data from `/api/recommendations/alerts?limit=5`:
-   - Columns: SKU · DC · Days to stockout · $ exposure · Action badge
-   - Clicking a row navigates to `/?selected=<id>` (same pattern as Inventory CTA)
-   - Reuse `getAlerts()` fetcher from `lib/api.ts`; map `AlertData` → row — no new types needed
+3 cards in a single-column layout:
+
+1. **Preferences** card — toggle rows (all stubs, no state needed):
+   - "Email alerts for critical SKUs" — default on
+   - "Daily digest at 8am" — default off
+   - "Show dollar values in dashboard" — default on
+
+2. **DC Labels** card — 3 read-only rows mapping code → display name:
+   - DC_EAST → DC East
+   - DC_WEST → DC West
+   - DC_CENTRAL → DC Central
+   - Note: "DC label editing not yet supported" in small muted text
+
+3. **Integrations** card — 3 integration rows with status badge:
+   - WMS (Warehouse Management) · Connected · `bg-green-100 text-green-700`
+   - ERP (SAP) · Connected · green
+   - EDI (SPS Commerce) · Pending setup · `bg-amber-100 text-amber-700`
 
 ### Backend
-All needed endpoints exist — no new backend work. Verify before adding:
-- `GET /api/chargebacks/top-causes?n=N` ✓
-- `GET /api/chargebacks/summary` ✓ (used by heatmap)
-- `GET /api/recommendations/alerts?limit=N` ✓
-- `GET /api/summary` ✓
+No new endpoints needed — both pages are pure UI stubs.
 
 ### Acceptance criteria
-1. `/analytics` loads with 4 KPI tiles (values or `—`).
-2. Heatmap renders (even with mock/empty data).
-3. Bar chart renders with Recharts.
-4. Top-risk SKUs table renders (5 rows or empty state).
-5. Zero TypeScript errors, zero console errors.
+1. `/reports` loads with quick-action cards + available reports list.
+2. `/settings` loads with 3 cards (Preferences / DC Labels / Integrations).
+3. Both pages use KpiCard-style card shell (`bg-white rounded-xl border border-slate-200 shadow-sm`).
+4. Zero TypeScript errors, zero console errors.
+5. Sidebar "Reports" and "Settings" nav links correctly highlight as active.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/frontend/app/analytics/page.tsx` (replace stub)
-- `web/frontend/components/ChargebackHeatmap.tsx` (reuse as-is, verify it accepts data prop or fetches internally)
-- `web/frontend/lib/api.ts` (add `getTopCauses()` fetcher if missing)
+- `web/frontend/app/reports/page.tsx` (replace stub)
+- `web/frontend/app/settings/page.tsx` (replace stub)
 
 ## LOCKED / DO NOT TOUCH
 
@@ -79,6 +91,7 @@ All needed endpoints exist — no new backend work. Verify before adding:
 - `components/ActionQueue.tsx`, `web/api/routes/action_items.py` — F3 deliverables
 - `components/RecommendationPanel.tsx`, `components/ActionComparisonCard.tsx`, `components/PoTimeline.tsx` — F4 deliverables
 - `components/InventoryMatrix.tsx`, `app/inventory/page.tsx` — F5 deliverables
+- `app/analytics/page.tsx` — F6 deliverable
 
 ## BLOCKERS
 
@@ -88,9 +101,9 @@ All needed endpoints exist — no new backend work. Verify before adding:
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (F6 — Analytics page) per the spec in prompt.md.
+Execute NEXT TASK (F7 — Reports + Settings stubs) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When F6 is done, update prompt.md NEXT TASK to F7, then run scripts/handoff.sh.
+When F7 is done, update prompt.md NEXT TASK to F8, then run scripts/handoff.sh.
 ```
 
 ---
@@ -106,8 +119,8 @@ When F6 is done, update prompt.md NEXT TASK to F7, then run scripts/handoff.sh.
 | F3 | Action Queue live | ✅ Done | `/api/action-items` endpoint, refactored `ActionQueue.tsx`, URGENT badges, URL-state selection, accent borders |
 | F4 | Recommendation Panel live | ✅ Done | `RecommendationPanel.tsx`, `ActionComparisonCard.tsx`, `PoTimeline.tsx`, driven by `?selected` param |
 | F5 | Inventory matrix | ✅ Done | `InventoryMatrix.tsx`, `/inventory` page, `GET /api/inventory/summary`, filter rail + URL state + pagination |
-| F6 | Analytics | 🔲 Next | `/analytics` — 4 KPI tiles + chargebacks heatmap + penalty charts + top-risk SKUs |
-| F7 | Reports + Settings stubs | 🔲 | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |
+| F6 | Analytics | ✅ Done | `app/analytics/page.tsx` — 4 KPI tiles + `ChargebackHeatmap` + CSS bar chart + top-risk SKUs table |
+| F7 | Reports + Settings stubs | 🔲 Next | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |
 | F8 | Filter + search behavior | 🔲 | Wire FilterBar pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms |
 | F9 | Polish pass | 🔲 | Active-nav aria-labels, keyboard nav, colorblind-safe chips, empty states. Merges with PLAN.md P14. |
 

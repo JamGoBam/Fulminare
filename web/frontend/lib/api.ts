@@ -63,3 +63,13 @@ export function getInventorySummary(): Promise<InventorySummaryData> {
 export function getInventoryImbalance(top = 1000): Promise<ImbalanceRow[]> {
   return apiGet<ImbalanceRow[]>(`/api/inventory/imbalance?top=${top}`)
 }
+
+export interface TopCause {
+  cause_code: string
+  total_amount: number
+  count: number
+}
+
+export function getTopCauses(n = 5): Promise<TopCause[]> {
+  return apiGet<TopCause[]>(`/api/chargebacks/top-causes?n=${n}`)
+}
