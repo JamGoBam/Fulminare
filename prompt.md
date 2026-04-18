@@ -15,83 +15,62 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- Completed **F5** — `InventoryMatrix.tsx` (left-rail filters with status checkboxes + DC selector + debounced search, URL-serialized filter state, paginated table 25 rows/page, status chips, Days-of-cover with MetricTooltip, At-risk $ + Recommendation CTA joined from action-items cache). `app/inventory/page.tsx` rebuilt with 4 KPI cards + matrix. `GET /api/inventory/summary` endpoint added to `inventory.py` (falls back imbalance→enriched). `getInventorySummary` + `getInventoryImbalance` added to `lib/api.ts`. Zero TypeScript errors, verified in preview.
-- Completed **F6** — `app/analytics/page.tsx` rebuilt: 4 KPI tiles (Annual Chargeback Exposure, System-Avoidable Savings, % Reduction, Top Cause) from `/api/summary` + `/api/chargebacks/top-causes`. CSS-only `CauseBarChart` (Recharts removed — SSR crash in Next.js 16). Reused `ChargebackHeatmap`. Top-risk SKUs table (top 5 by `potentialPenalty` from action-items cache). `getTopCauses()` added to `lib/api.ts`. Key fix: removed `<Suspense>` wrapper (AnalyticsContent doesn't use `useSearchParams()` — wrapper caused permanent fallback state). Zero TypeScript errors, verified in preview.
+- Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards (Export Chargeback Report / Transfer Summary / OTIF Scorecard) with icons + Download/View stub buttons; Available Reports table (5 hardcoded rows: name, frequency, last generated, format, download button). `app/settings/page.tsx`: Preferences card (3 toggle rows with functional `useState` toggles); DC Labels card (DC_EAST/WEST/CENTRAL → display names, read-only with muted note); Integrations card (WMS Connected green, ERP Connected green, EDI Pending amber). Both pages use standard card shell, sidebar nav highlights active route. Zero TS errors, zero console errors, verified in preview.
 - Backend still has pre-existing P11 blocker (`chat.py` imports `anthropic`); all frontend work is unaffected.
 
 ---
 
 ## NEXT TASK
 
-**F7 — Reports + Settings stubs** — `/reports` and `/settings` routes with real content cards (not empty stubs).
+**F8 — Filter + search behavior** — Wire `FilterBar` pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms.
 
 ### What to build
 
-#### Reports page (`app/reports/page.tsx`)
+1. **FilterBar → Action Queue wiring** (`app/page.tsx` / `components/FilterBar.tsx` / `components/ActionQueue.tsx`):
+   - FilterBar pills (Critical / Watch / Transfer / Resolved) push `?status=` to the URL via `useRouter().push` (shallow).
+   - Action Queue reads `?status=` from `useSearchParams()` and filters its list client-side.
+   - Active pill gets `bg-blue-600 text-white`; inactive stays default slate.
+   - DC dropdown (if present in FilterBar) pushes `?dc=DC_EAST|DC_WEST|DC_CENTRAL|all`.
 
-1. **Quick-action cards** (2–3 cards, horizontal row):
-   - "Export Chargeback Report" — icon `FileText`, subtitle "CSV · last 90 days", button "Download"
-   - "Transfer Summary" — icon `ArrowRight`, subtitle "Pending transfers this week", button "View"
-   - "OTIF Scorecard" — icon `TrendingUp`, subtitle "On-time in-full by DC", button "View"
-   - Buttons are stubs — log to console, optionally show a toast "Feature coming soon"
+2. **Global search** (TopBar `Search` input):
+   - Debounced 200 ms — push `?q=<term>` to URL on change.
+   - Action Queue filters by `itemName` or `sku` containing the query (case-insensitive).
+   - Clear button (×) resets `?q=`.
 
-2. **Available Reports list** — a card containing a simple table or list:
-   - Columns: Report Name · Frequency · Last Generated · Format · Action (Download button)
-   - 4–6 hardcoded rows (no API calls needed; this is purely a UI stub):
-     - Chargeback Detail · Weekly · Apr 14, 2026 · CSV
-     - Inventory Imbalance · Daily · Apr 18, 2026 · CSV
-     - Transfer Log · Weekly · Apr 14, 2026 · XLSX
-     - OTIF Scorecard · Monthly · Apr 1, 2026 · PDF
-     - Supplier Lead Time · Monthly · Apr 1, 2026 · PDF
-   - All Download buttons log to console
+3. **URL-state persistence**: navigating away and back restores the same filters (already works if URL params are used — just verify).
 
-#### Settings page (`app/settings/page.tsx`)
-
-3 cards in a single-column layout:
-
-1. **Preferences** card — toggle rows (all stubs, no state needed):
-   - "Email alerts for critical SKUs" — default on
-   - "Daily digest at 8am" — default off
-   - "Show dollar values in dashboard" — default on
-
-2. **DC Labels** card — 3 read-only rows mapping code → display name:
-   - DC_EAST → DC East
-   - DC_WEST → DC West
-   - DC_CENTRAL → DC Central
-   - Note: "DC label editing not yet supported" in small muted text
-
-3. **Integrations** card — 3 integration rows with status badge:
-   - WMS (Warehouse Management) · Connected · `bg-green-100 text-green-700`
-   - ERP (SAP) · Connected · green
-   - EDI (SPS Commerce) · Pending setup · `bg-amber-100 text-amber-700`
+4. **Empty state**: if filtered list is empty, show a centered card: icon `Package`, heading "No items match", subtext "Try clearing filters or adjusting your search."
 
 ### Backend
-No new endpoints needed — both pages are pure UI stubs.
+No new endpoints needed.
 
 ### Acceptance criteria
-1. `/reports` loads with quick-action cards + available reports list.
-2. `/settings` loads with 3 cards (Preferences / DC Labels / Integrations).
-3. Both pages use KpiCard-style card shell (`bg-white rounded-xl border border-slate-200 shadow-sm`).
-4. Zero TypeScript errors, zero console errors.
-5. Sidebar "Reports" and "Settings" nav links correctly highlight as active.
+1. Clicking a FilterBar pill adds `?status=` to URL and Action Queue shows only matching rows.
+2. Typing in search box debounces 200 ms, pushes `?q=`, and Action Queue filters by name/SKU.
+3. Clearing search or pills restores full list.
+4. Empty state renders when no rows match.
+5. Zero TypeScript errors, zero console errors.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/frontend/app/reports/page.tsx` (replace stub)
-- `web/frontend/app/settings/page.tsx` (replace stub)
+- `web/frontend/app/page.tsx` (Dashboard — wires FilterBar → ActionQueue)
+- `web/frontend/components/FilterBar.tsx` (add URL push)
+- `web/frontend/components/ActionQueue.tsx` (read URL params, filter, empty state)
+- `web/frontend/components/TopBar.tsx` (debounced search input → URL)
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- `components/Sidebar.tsx`, `components/TopBar.tsx`, `app/layout.tsx` — F1 deliverables
-- `components/KpiCard.tsx`, `components/FilterBar.tsx` — F2 deliverables
-- `components/ActionQueue.tsx`, `web/api/routes/action_items.py` — F3 deliverables
+- `components/Sidebar.tsx`, `app/layout.tsx` — F1 deliverables
+- `components/KpiCard.tsx` — F2 deliverable
+- `web/api/routes/action_items.py` — F3 deliverable
 - `components/RecommendationPanel.tsx`, `components/ActionComparisonCard.tsx`, `components/PoTimeline.tsx` — F4 deliverables
 - `components/InventoryMatrix.tsx`, `app/inventory/page.tsx` — F5 deliverables
 - `app/analytics/page.tsx` — F6 deliverable
+- `app/reports/page.tsx`, `app/settings/page.tsx` — F7 deliverables
 
 ## BLOCKERS
 
@@ -101,9 +80,9 @@ No new endpoints needed — both pages are pure UI stubs.
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (F7 — Reports + Settings stubs) per the spec in prompt.md.
+Execute NEXT TASK (F8 — Filter + search behavior) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When F7 is done, update prompt.md NEXT TASK to F8, then run scripts/handoff.sh.
+When F8 is done, update prompt.md NEXT TASK to F9, then run scripts/handoff.sh.
 ```
 
 ---
@@ -120,8 +99,8 @@ When F7 is done, update prompt.md NEXT TASK to F8, then run scripts/handoff.sh.
 | F4 | Recommendation Panel live | ✅ Done | `RecommendationPanel.tsx`, `ActionComparisonCard.tsx`, `PoTimeline.tsx`, driven by `?selected` param |
 | F5 | Inventory matrix | ✅ Done | `InventoryMatrix.tsx`, `/inventory` page, `GET /api/inventory/summary`, filter rail + URL state + pagination |
 | F6 | Analytics | ✅ Done | `app/analytics/page.tsx` — 4 KPI tiles + `ChargebackHeatmap` + CSS bar chart + top-risk SKUs table |
-| F7 | Reports + Settings stubs | 🔲 Next | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |
-| F8 | Filter + search behavior | 🔲 | Wire FilterBar pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms |
+| F7 | Reports + Settings stubs | ✅ Done | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |
+| F8 | Filter + search behavior | 🔲 Next | Wire FilterBar pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms |
 | F9 | Polish pass | 🔲 | Active-nav aria-labels, keyboard nav, colorblind-safe chips, empty states. Merges with PLAN.md P14. |
 
 ---
