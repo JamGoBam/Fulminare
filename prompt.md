@@ -21,6 +21,7 @@ Three linked workstreams for the real-user POP Inventory tool:
 - **U4 complete** — Draggable non-modal chatbot panel: replaced `<Sheet>` with fixed-position `div bottom-6 right-6`, pointer-event drag with viewport clamping, minimize/maximize via `ChevronDown`/`ChevronUp`, `X` close, FAB hidden when open. All SSE streaming logic intact.
 - **U5 complete** — Analytics page inline rec panel: `?selected=` URL state, `RecommendationPanel` embedded in 2-column layout alongside heatmap + top-risk SKUs; clicking a row in the top-risk table sets `?selected=`.
 - **U6 complete** — InventoryMatrix: 3 saved-view presets (My morning triage / East DC watchlist / Overstock candidates) in left filter rail, active state highlighted blue when filters match. Every table row is clickable — routes to `/?selected=<id>` when action item exists, else `/sku/<sku>`. Action-cell stopPropagation preserved.
+- **U7 complete** — Chargebacks page: filter bar (channel + DC selects, URL state, clear link); heatmap upgraded with `channel`/`dc` props for client-side filtering + plain-language cause labels (SHORT_SHIP → "Short shipment" etc.) + DC column headers localised; top-10 customers table added below heatmap (`getTopCustomers` fetcher in `lib/api.ts`). Zero console errors.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -33,49 +34,32 @@ ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
 
 ## NEXT TASK
 
-**U7 — Chargebacks page: filter bar + top-customers list**
+**U8 — SKU detail page redesign (`/sku/[sku]`)**
 
-**U7 — Chargebacks page: filter bar + top-customers list**
+Per PLAN.md P9: 3-DC status cards, PO timeline, inline transfer recommendation card, recent chargebacks list for the SKU.
 
-Files: `web/frontend/app/chargebacks/page.tsx` and `web/frontend/components/ChargebackHeatmap.tsx`
+Files: `web/frontend/app/sku/[sku]/page.tsx` (redesign), `web/frontend/components/PoTimeline.tsx` (already exists — reuse).
 
-**#1 — Filter bar** (add above the heatmap card in `chargebacks/page.tsx`)
-- A `<div className="flex items-center gap-3 flex-wrap">` row with:
-  - Channel `<select>`: options ["All channels", "Direct", "Wholesale", "Retail", "Online"] (hardcode from known seed channels — do not fetch). Store in URL param `?channel=`.
-  - DC `<select>`: options ["All DCs", "DC East", "DC West", "DC Central"]. Store in URL param `?dc=`.
-- URL state: use `useSearchParams` + `useRouter`. Selecting a filter calls `router.push("/chargebacks?" + newParams)`.
-- Pass selected `channel` and `dc` as props to `<ChargebackHeatmap channel={channel} dc={dc} />`.
+Acceptance criteria:
+1. **3-DC cards** — one card per DC showing status chip (Critical/Watch/Healthy/Overstock), days of cover, on-hand units, and at-risk $. Source from `GET /api/inventory/sku/{sku}` or derive from existing data.
+2. **PO Timeline** — reuse `<PoTimeline>` component showing today + transfer ETA + inbound PO arrival. Already implemented; just wire the right data.
+3. **Inline transfer rec card** — same `<RecommendationPanel>`-style card if an action item exists for this SKU; otherwise show "No transfer decision pending."
+4. **Recent chargebacks** — bottom section, last 90 days for this SKU, 3–5 rows max. Source from chargebacks data filtered by SKU.
+5. **Back link** → Dashboard (`/`).
 
-**#2 — ChargebackHeatmap props + plain-language labels**
-- Add optional `channel?: string` and `dc?: string` props to `ChargebackHeatmap`. When set, filter the `records` from the API response before rendering (client-side filter — no backend change needed).
-- Map cause codes to plain language in the row headers:
-  - `SHORT_SHIP` → "Short shipment"
-  - `LATE_DELIVERY` → "Late delivery"
-  - `DAMAGE` → "Damaged goods"
-  - `MISSED_WINDOW` → "Missed window"
-  (already done in analytics page — replicate here)
+Commit: `[FRONTEND] polish: U8 — SKU detail page with 3-DC cards, PO timeline, inline rec`
+Then update prompt.md and run `scripts/handoff.sh`.
 
-**#3 — Top-10 customers table** (add below the heatmap card in `chargebacks/page.tsx`)
-- Fetch `GET /api/chargebacks/top-customers?n=10`. Response shape: `{ customer_id: string, total_amount: number, count: number }[]`.
-- Render as a `<table>` with columns: Rank, Customer, Incidents, Total Exposure.
-- Format exposure with `fmt()`. Show rank as `#1`…`#10`.
-- Add the fetcher to `web/frontend/lib/api.ts`: `export function getTopCustomers(n=10): Promise<TopCustomer[]> { return apiGet(...) }` with `TopCustomer` interface.
-- Empty/loading states: skeleton rows while loading; "No chargeback data" message if empty.
+## FILES IN PLAY (U8)
 
-Commit: `[FRONTEND] polish: U7 — chargebacks filter bar, plain labels, top-customers table`
-Then update prompt.md NEXT TASK → U8 (or declare done if no more polish needed) and run `scripts/handoff.sh`.
-
-## FILES IN PLAY (U7)
-
-- `web/frontend/app/chargebacks/page.tsx` — filter bar + top-customers table
-- `web/frontend/components/ChargebackHeatmap.tsx` — channel/dc props + plain labels
-- `web/frontend/lib/api.ts` — add `getTopCustomers` fetcher
+- `web/frontend/app/sku/[sku]/page.tsx` — full redesign
+- `web/frontend/components/PoTimeline.tsx` — reuse as-is
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- `web/api/` — no backend changes for U6/U7
+- `web/api/` — no backend changes needed; use existing `/api/inventory/sku/{sku}` and `/api/action-items`
 
 ## BLOCKERS
 
@@ -85,9 +69,9 @@ Then update prompt.md NEXT TASK → U8 (or declare done if no more polish needed
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U6 are complete. Execute NEXT TASK (U7 — Chargebacks filter bar + top-customers) per the spec in prompt.md.
+Note: U1–U7 are complete. Execute NEXT TASK (U8 — SKU detail page redesign) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U7 is done, update prompt.md and run scripts/handoff.sh.
+When U8 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---

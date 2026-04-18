@@ -19,6 +19,19 @@ const API_URL = `${API_BASE}/api/chargebacks/summary`
 
 const DCS = ["DC_EAST", "DC_WEST", "DC_CENTRAL"] as const
 
+const CAUSE_LABELS: Record<string, string> = {
+  SHORT_SHIP: "Short shipment",
+  LATE_DELIVERY: "Late delivery",
+  DAMAGE: "Damaged goods",
+  MISSED_WINDOW: "Missed window",
+}
+
+const DC_LABELS: Record<string, string> = {
+  DC_EAST: "DC East",
+  DC_WEST: "DC West",
+  DC_CENTRAL: "DC Central",
+}
+
 interface SummaryRow {
   cause_code: string
   channel: string
@@ -57,20 +70,25 @@ function SkeletonRows() {
   )
 }
 
-export function ChargebackHeatmap() {
+export function ChargebackHeatmap({ channel, dc }: { channel?: string; dc?: string }) {
   const { data, isLoading, isError } = useQuery<SummaryRow[]>({
     queryKey: ["chargebacks"],
     queryFn: () => axios.get<SummaryRow[]>(API_URL).then((r) => r.data),
   })
 
+  // Client-side filter by channel / dc props
+  const filtered = (data ?? []).filter((row) => {
+    if (channel && row.channel !== channel) return false
+    if (dc && row.dc !== dc) return false
+    return true
+  })
+
   // Pivot: cause_code → dc → summed amount
   const pivot = new Map<string, Map<string, number>>()
-  if (data) {
-    for (const row of data) {
-      if (!pivot.has(row.cause_code)) pivot.set(row.cause_code, new Map())
-      const dcMap = pivot.get(row.cause_code)!
-      dcMap.set(row.dc, (dcMap.get(row.dc) ?? 0) + row.total_amount)
-    }
+  for (const row of filtered) {
+    if (!pivot.has(row.cause_code)) pivot.set(row.cause_code, new Map())
+    const dcMap = pivot.get(row.cause_code)!
+    dcMap.set(row.dc, (dcMap.get(row.dc) ?? 0) + row.total_amount)
   }
 
   const causeCodes = Array.from(pivot.keys()).sort()
@@ -89,9 +107,9 @@ export function ChargebackHeatmap() {
           <TableHead className="w-40">
             <MetricTooltip metric="cause_code">Cause Code</MetricTooltip>
           </TableHead>
-          {DCS.map((dc) => (
-            <TableHead key={dc} className="text-right">
-              {dc}
+          {DCS.map((d) => (
+            <TableHead key={d} className="text-right">
+              {DC_LABELS[d] ?? d}
             </TableHead>
           ))}
         </TableRow>
@@ -107,12 +125,12 @@ export function ChargebackHeatmap() {
         )}
         {causeCodes.map((code) => (
           <TableRow key={code}>
-            <TableCell className="font-mono text-xs font-medium">{code}</TableCell>
-            {DCS.map((dc) => {
-              const amt = pivot.get(code)?.get(dc) ?? 0
+            <TableCell className="text-xs font-medium">{CAUSE_LABELS[code] ?? code}</TableCell>
+            {DCS.map((d) => {
+              const amt = pivot.get(code)?.get(d) ?? 0
               return (
                 <TableCell
-                  key={dc}
+                  key={d}
                   className="text-right tabular-nums transition-colors"
                   style={cellStyle(amt, maxAmount)}
                 >
@@ -127,9 +145,9 @@ export function ChargebackHeatmap() {
         <TableFooter>
           <TableRow>
             <TableCell className="font-semibold">Total</TableCell>
-            {DCS.map((dc) => (
-              <TableCell key={dc} className="text-right tabular-nums font-semibold">
-                {fmt(colTotals[dc])}
+            {DCS.map((d) => (
+              <TableCell key={d} className="text-right tabular-nums font-semibold">
+                {fmt(colTotals[d])}
               </TableCell>
             ))}
           </TableRow>

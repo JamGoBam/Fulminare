@@ -73,3 +73,13 @@ export interface TopCause {
 export function getTopCauses(n = 5): Promise<TopCause[]> {
   return apiGet<TopCause[]>(`/api/chargebacks/top-causes?n=${n}`)
 }
+
+export interface TopCustomer {
+  customer_id: string
+  total_amount: number
+  count: number
+}
+
+export function getTopCustomers(n = 10): Promise<TopCustomer[]> {
+  return apiGet<TopCustomer[]>(`/api/chargebacks/top-customers?n=${n}`)
+}
