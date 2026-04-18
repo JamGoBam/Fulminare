@@ -81,7 +81,48 @@ class ManualVsSystem(BaseModel):
     pct_reduction: float
 
 
+class InventorySummary(BaseModel):
+    total: int
+    critical: int
+    watch: int
+    healthy: int
+    overstock: int
+
+
 # ── Endpoints ──────────────────────────────────────────────────────────────────
+
+@router.get("/inventory/summary", response_model=InventorySummary)
+def get_inventory_summary() -> dict:
+    # Try enriched.parquet (P3 output) first; fall back to imbalance.parquet
+    try:
+        df = pd.read_parquet(_PROCESSED / "enriched.parquet")
+        counts = df["status_plain"].value_counts().to_dict()
+        return InventorySummary(
+            total=len(df),
+            critical=int(counts.get("Critical", 0)),
+            watch=int(counts.get("Watch", 0)),
+            healthy=int(counts.get("Healthy", 0)),
+            overstock=int(counts.get("Overstock", 0)),
+        ).model_dump()
+    except (FileNotFoundError, KeyError):
+        pass
+
+    df = _parquet("imbalance.parquet")
+    status_map = {"critical": "Critical", "warning": "Watch", "ok": "Healthy"}
+    df = df.copy()
+    df["status_plain"] = df["status"].map(status_map).fillna("Healthy")
+    if "dos" in df.columns:
+        overstock_mask = (df["status"] == "ok") & (df["dos"].notna()) & (df["dos"] > 180)
+        df.loc[overstock_mask, "status_plain"] = "Overstock"
+    counts = df["status_plain"].value_counts().to_dict()
+    return InventorySummary(
+        total=len(df),
+        critical=int(counts.get("Critical", 0)),
+        watch=int(counts.get("Watch", 0)),
+        healthy=int(counts.get("Healthy", 0)),
+        overstock=int(counts.get("Overstock", 0)),
+    ).model_dump()
+
 
 @router.get("/inventory/imbalance")
 def get_imbalance(top: int = 20) -> list[dict]:
