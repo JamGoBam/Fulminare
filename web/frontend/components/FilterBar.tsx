@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Search, AlertTriangle, FileWarning, Truck, CheckSquare } from "lucide-react"
 
 const QUICK_FILTERS = [
@@ -34,23 +34,46 @@ const QUICK_FILTERS = [
   },
 ]
 
-const DROPDOWNS = [
-  { label: "All DCs", options: ["DC West", "DC Central", "DC East"] },
-  { label: "All Risk Levels", options: ["High Risk", "Medium Risk", "Low Risk"] },
-  { label: "All Recommendations", options: ["Transfer Now", "Wait", "Escalate"] },
-  { label: "All Channels", options: ["Costco", "Whole Foods", "Sprouts", "Amazon", "Independent Retailers"] },
-  { label: "Sort: Urgency", options: ["Sort: Penalty Exposure", "Sort: Confidence", "Sort: DC Name"] },
+const DC_OPTIONS = [
+  { label: "All DCs",    value: "" },
+  { label: "DC West",    value: "DC West" },
+  { label: "DC Central", value: "DC Central" },
+  { label: "DC East",    value: "DC East" },
+]
+
+const COSMETIC_DROPDOWNS = [
+  { label: "All Risk Levels",       options: ["High Risk", "Medium Risk", "Low Risk"] },
+  { label: "All Recommendations",   options: ["Transfer Now", "Wait", "Escalate"] },
+  { label: "All Channels",          options: ["Costco", "Whole Foods", "Sprouts", "Amazon", "Independent Retailers"] },
+  { label: "Sort: Urgency",         options: ["Sort: Penalty Exposure", "Sort: Confidence", "Sort: DC Name"] },
 ]
 
 export function FilterBar() {
-  const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set())
+  const router = useRouter()
+  const pathname = usePathname()
+  const params = useSearchParams()
 
-  function toggle(id: string) {
-    setActiveFilters((prev) => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
-      return next
-    })
+  const activeStatus = new Set((params.get("status") ?? "").split(",").filter(Boolean))
+  const activeDc = params.get("dc") ?? ""
+
+  function pushParams(updates: Record<string, string | null>) {
+    const next = new URLSearchParams(params.toString())
+    for (const [k, v] of Object.entries(updates)) {
+      if (!v) next.delete(k)
+      else next.set(k, v)
+    }
+    const qs = next.toString()
+    router.push(`${pathname}${qs ? `?${qs}` : ""}`)
+  }
+
+  function togglePill(id: string) {
+    const next = new Set(activeStatus)
+    next.has(id) ? next.delete(id) : next.add(id)
+    pushParams({ status: [...next].join(",") || null })
+  }
+
+  function handleDcChange(value: string) {
+    pushParams({ dc: value || null })
   }
 
   return (
@@ -65,15 +88,26 @@ export function FilterBar() {
               className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
           </div>
-          {DROPDOWNS.map(({ label, options }) => (
+
+          {/* DC dropdown — wired to ?dc= */}
+          <select
+            value={activeDc}
+            onChange={(e) => handleDcChange(e.target.value)}
+            className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          >
+            {DC_OPTIONS.map(({ label, value }) => (
+              <option key={label} value={value}>{label}</option>
+            ))}
+          </select>
+
+          {/* Cosmetic dropdowns */}
+          {COSMETIC_DROPDOWNS.map(({ label, options }) => (
             <select
               key={label}
               className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             >
               <option>{label}</option>
-              {options.map((o) => (
-                <option key={o}>{o}</option>
-              ))}
+              {options.map((o) => <option key={o}>{o}</option>)}
             </select>
           ))}
         </div>
@@ -84,9 +118,9 @@ export function FilterBar() {
         {QUICK_FILTERS.map(({ id, label, icon: Icon, active, idle }) => (
           <button
             key={id}
-            onClick={() => toggle(id)}
+            onClick={() => togglePill(id)}
             className={`px-3 py-1.5 border rounded-lg text-xs font-medium transition-colors flex items-center gap-1.5 ${
-              activeFilters.has(id) ? active : idle
+              activeStatus.has(id) ? active : idle
             }`}
           >
             <Icon className="w-3.5 h-3.5" />

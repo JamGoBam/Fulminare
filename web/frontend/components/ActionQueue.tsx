@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query"
 import { useRouter, useSearchParams } from "next/navigation"
-import { AlertCircle, Clock, CheckCircle, DollarSign } from "lucide-react"
+import { AlertCircle, Clock, CheckCircle, DollarSign, Package } from "lucide-react"
 import { getActionItems } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
 
@@ -52,10 +52,30 @@ function Skeleton() {
   )
 }
 
+function EmptyState() {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
+      <Package className="w-10 h-10 text-slate-300 mb-3" />
+      <p className="text-sm font-semibold text-slate-700 mb-1">No items match</p>
+      <p className="text-xs text-slate-500">Try clearing filters or adjusting your search.</p>
+    </div>
+  )
+}
+
+const PILL_FILTER: Record<string, (item: ActionItem) => boolean> = {
+  "high-risk":      (item) => item.riskLevel === "High",
+  "fda-holds":      (item) => item.riskLevel === "High",
+  "split-ship":     (item) => item.recommendation === "Transfer Now",
+  "needs-approval": (item) => item.recommendation === "Escalate",
+}
+
 export function ActionQueue() {
   const router = useRouter()
   const params = useSearchParams()
   const selectedId = params.get("selected")
+  const q = (params.get("q") ?? "").toLowerCase().trim()
+  const activeDc = (params.get("dc") ?? "").toLowerCase()
+  const activeStatus = new Set((params.get("status") ?? "").split(",").filter(Boolean))
 
   const { data, isLoading, isError } = useQuery<ActionItem[]>({
     queryKey: ["action-items"],
@@ -81,7 +101,30 @@ export function ActionQueue() {
     )
   }
 
-  // Top 3 High-risk rows get URGENT badge
+  // Apply filters
+  let filtered = data
+
+  if (q) {
+    filtered = filtered.filter(
+      (item) =>
+        item.sku.toLowerCase().includes(q) ||
+        item.itemName.toLowerCase().includes(q)
+    )
+  }
+
+  if (activeDc) {
+    filtered = filtered.filter(
+      (item) => item.atRiskDC.toLowerCase() === activeDc
+    )
+  }
+
+  if (activeStatus.size > 0) {
+    filtered = filtered.filter((item) =>
+      [...activeStatus].some((pid) => PILL_FILTER[pid]?.(item) ?? false)
+    )
+  }
+
+  // Top 3 High-risk rows get URGENT badge (based on unfiltered data)
   const urgentIds = new Set(
     data
       .filter((item) => item.riskLevel === "High")
@@ -95,9 +138,11 @@ export function ActionQueue() {
     router.push(`/?${next.toString()}`)
   }
 
+  if (filtered.length === 0) return <EmptyState />
+
   return (
     <ul className="divide-y divide-slate-100">
-      {data.map((item) => {
+      {filtered.map((item) => {
         const isSelected = item.id === selectedId
         const isUrgent = urgentIds.has(item.id)
         const days = item.daysUntilStockout
@@ -111,7 +156,6 @@ export function ActionQueue() {
               ${isUrgent && !isSelected ? "bg-red-50/30" : ""}
             `}
           >
-            {/* URGENT badge */}
             {isUrgent && (
               <span className="absolute top-2 right-3 bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
                 URGENT
