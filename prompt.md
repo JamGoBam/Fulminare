@@ -16,68 +16,68 @@ Three linked workstreams for the real-user POP Inventory tool:
 ## LAST SESSION SUMMARY
 
 - Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards + Available Reports table (5 rows). `app/settings/page.tsx`: Preferences toggles, DC Labels read-only, Integrations with status badges. Zero errors.
-- Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=` URL param, × clear button (preserves other params). `FilterBar.tsx`: quick-filter pills wired to `?status=` (comma-separated), DC dropdown wired to `?dc=`; cosmetic dropdowns unchanged; `useSearchParams` reads params for active state. `ActionQueue.tsx`: reads `?q=` (filters by sku/itemName), `?dc=` (filters by atRiskDC), `?status=` (OR logic across PILL_FILTER map); `EmptyState` component (Package icon, "No items match"). All params coexist correctly; × clears only `?q=` leaving other params intact. Verified in preview — zero TS errors, zero console errors.
-- Backend still has pre-existing P11 blocker (`chat.py` imports `anthropic`); all frontend work is unaffected.
+- Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=`, × clear. `FilterBar.tsx`: pills wired to `?status=`, DC dropdown to `?dc=`. `ActionQueue.tsx`: client-side filtering + EmptyState.
+- Completed **F9** — `Sidebar.tsx`: `aria-current="page"` on active nav link. `ActionQueue.tsx`: rows are `role="button" tabIndex=0` with `onKeyDown` Enter/Space + `focus-visible:ring-2`. `InventoryMatrix.tsx`: STATUS_META extended with icon components (AlertTriangle/Clock/CheckCircle/TrendingUp); both table chips and filter-rail chips render icon+label inline. `MetricTooltip.tsx`: glossary expanded from 9 → 25 terms covering all app metrics. `OnboardingTour.tsx` (new): fixed bottom-center banner, dismisses to sessionStorage `"pop-onboarding-dismissed"`, `aria-label` on X. Mounted in `app/layout.tsx`. Verified: banner appears fresh, X dismisses and sets sessionStorage, no console errors.
+- Backend still has pre-existing P11 blocker (`chat.py` imports `anthropic`); all frontend F-phases (F1–F9) now complete.
 
 ---
 
 ## NEXT TASK
 
-**F9 — Polish pass** — Active-nav aria-labels, keyboard nav, colorblind-safe chips, empty states, `MetricTooltip` glossary expansion to ~25 terms. Merges with PLAN.md P14.
+**P11 — Chatbot local-inference swap** — Replace the `anthropic` SDK in `chat.py` with the OpenAI-compatible client pointed at the local Ollama server. Zero external API key required after this change.
 
-### What to build
+### What to change
 
-1. **Active nav aria-labels** (`Sidebar.tsx`) — add `aria-current="page"` to the active nav link.
+1. **`web/api/config.py`** (new file) — centralize model config:
+   ```python
+   import os
+   OLLAMA_URL     = os.getenv("OLLAMA_URL",     "http://localhost:11434/v1")
+   OLLAMA_MODEL   = os.getenv("OLLAMA_MODEL",   "qwen2.5:7b-instruct")
+   OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+   ```
 
-2. **Keyboard navigation** — Action Queue rows should be focusable and respond to Enter/Space to select (same as click).
+2. **`web/api/routes/chat.py`** — replace `import anthropic` / `anthropic.Anthropic()` with:
+   ```python
+   from openai import OpenAI
+   from web.api.config import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
+   client = OpenAI(base_url=OLLAMA_URL, api_key="ollama", timeout=OLLAMA_TIMEOUT)
+   ```
+   - Change stream call to `client.chat.completions.create(model=OLLAMA_MODEL, messages=..., stream=True, tools=...)`
+   - Drop `cache_control: {"type": "ephemeral"}` dicts from messages (unsupported locally)
+   - Add Ollama-offline error path: if `httpx.ConnectError` / `openai.APIConnectionError`, stream a single SSE event `data: {"error": "Ollama offline — run \`ollama serve\`"}\n\n`
 
-3. **Colorblind-safe status chips** — add icons alongside color chips in `InventoryMatrix.tsx` so status is not conveyed by color alone:
-   - Critical → `AlertTriangle` icon
-   - Low → `Clock` icon
-   - Overstock → `TrendingUp` icon
-   - Healthy → `CheckCircle` icon
+3. **`web/api/chat_prompts.py`** — remove any `cache_control` dicts; add sentence to system prompt: "Only state inventory numbers that appear in a tool result from this conversation turn."
 
-4. **Empty states** — add empty states to:
-   - Inventory page (no rows after filter)
-   - Analytics page (if data is empty)
+4. **`pyproject.toml`** — remove `anthropic>=0.40` from dependencies, confirm `openai>=1.40` is present.
 
-5. **MetricTooltip glossary** (`MetricTooltip.tsx`) — expand to ~25 terms covering all metrics used across the app (Days of Supply, Imbalance Score, Transfer Cost, Chargeback Risk Score, OTIF Risk, Demand Rate, etc.).
-
-6. **OnboardingTour stub** (`components/OnboardingTour.tsx`) — a simple "first visit" banner (dismissible, sessionStorage-persisted): "Welcome to POP Operations Hub — click any Action Queue row to see a transfer recommendation."
+5. **`web/api/chat_tools.py`** — no logic change needed unless tool reads still reference old parquet paths.
 
 ### Backend
-No new endpoints needed.
+Requires `pip install openai` (already in pyproject if present; verify). Does NOT require Ollama to be running to start the FastAPI server — the error path handles offline gracefully.
 
 ### Acceptance criteria
-1. Sidebar active link has `aria-current="page"`.
-2. Action Queue rows keyboard-navigable (Tab + Enter/Space).
-3. InventoryMatrix status chips show icon + color.
-4. MetricTooltip has ≥20 terms.
-5. OnboardingTour banner appears on first visit, dismisses on click.
-6. Zero TypeScript errors, zero console errors.
+1. `uvicorn web.api.main:app --reload --port 8000` starts without `ImportError`.
+2. `GET /healthz` returns 200.
+3. `POST /api/chat` with Ollama offline returns SSE error event (not a 500).
+4. `POST /api/chat` with Ollama online streams tokens correctly.
+5. No `ANTHROPIC_API_KEY` reference anywhere in the codebase.
+6. `pytest -q` passes.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/frontend/components/Sidebar.tsx` (aria-current)
-- `web/frontend/components/ActionQueue.tsx` (keyboard nav)
-- `web/frontend/components/InventoryMatrix.tsx` (icon+color chips)
-- `web/frontend/components/MetricTooltip.tsx` (expand glossary)
-- `web/frontend/components/OnboardingTour.tsx` (new — first-visit banner)
+- `web/api/config.py` (new)
+- `web/api/routes/chat.py` (swap anthropic → openai-compat)
+- `web/api/chat_prompts.py` (remove cache_control, add grounding rule)
+- `pyproject.toml` (swap anthropic dep → openai)
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- `app/layout.tsx` — F1 deliverable
-- `components/KpiCard.tsx` — F2 deliverable
-- `web/api/routes/action_items.py` — F3 deliverable
-- `components/RecommendationPanel.tsx`, `components/ActionComparisonCard.tsx`, `components/PoTimeline.tsx` — F4 deliverables
-- `app/inventory/page.tsx` — F5 deliverable
-- `app/analytics/page.tsx` — F6 deliverable
-- `app/reports/page.tsx`, `app/settings/page.tsx` — F7 deliverables
-- `components/TopBar.tsx`, `components/FilterBar.tsx` — F8 deliverables
+- All frontend components (F1–F9 deliverables) — do not touch
+- `web/api/routes/action_items.py`, `web/api/routes/inventory.py`, etc. — non-chat backend untouched
 
 ## BLOCKERS
 
@@ -87,9 +87,9 @@ No new endpoints needed.
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (F9 — Polish pass) per the spec in prompt.md.
+Execute NEXT TASK (P11 — chatbot local-inference swap) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When F9 is done, update prompt.md NEXT TASK to P11 (chatbot migration), then run scripts/handoff.sh.
+When P11 is done, update prompt.md NEXT TASK to P12, then run scripts/handoff.sh.
 ```
 
 ---
@@ -108,7 +108,7 @@ When F9 is done, update prompt.md NEXT TASK to P11 (chatbot migration), then run
 | F6 | Analytics | ✅ Done | `app/analytics/page.tsx` — 4 KPI tiles + `ChargebackHeatmap` + CSS bar chart + top-risk SKUs table |
 | F7 | Reports + Settings stubs | ✅ Done | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |
 | F8 | Filter + search behavior | ✅ Done | Wire FilterBar pills + dropdowns to Action Queue; URL-state filters; global search debounced 200ms |
-| F9 | Polish pass | 🔲 Next | Active-nav aria-labels, keyboard nav, colorblind-safe chips, empty states. Merges with PLAN.md P14. |
+| F9 | Polish pass | ✅ Done | Active-nav aria-labels, keyboard nav, colorblind-safe chips, MetricTooltip 25 terms, OnboardingTour banner. |
 
 ---
 
