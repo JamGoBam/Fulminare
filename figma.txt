@@ -1,0 +1,1617 @@
+src/app/App.tsx
+import { useState } from 'react';
+import { Sidebar } from './components/Sidebar';
+import { Header } from './components/Header';
+import { KPICards } from './components/KPICards';
+import { FilterBar } from './components/FilterBar';
+import { ActionQueue } from './components/ActionQueue';
+import { RecommendationPanel } from './components/RecommendationPanel';
+import { InventoryScreen } from './components/InventoryScreen';
+import { AnalyticsScreen } from './components/AnalyticsScreen';
+import { ReportsScreen } from './components/ReportsScreen';
+import { actionQueueData } from './data/actionQueueData';
+
+export default function App() {
+  const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
+  const [currentView, setCurrentView] = useState<string>('dashboard');
+
+  const selectedItem = actionQueueData.find(item => item.id === selectedItemId) || null;
+
+  const renderMainContent = () => {
+    switch (currentView) {
+      case 'inventory':
+        return <InventoryScreen />;
+      case 'analytics':
+        return <AnalyticsScreen />;
+      case 'reports':
+        return <ReportsScreen />;
+      case 'settings':
+        return (
+          <div className="p-8">
+            <h1 className="text-2xl font-semibold text-slate-900 mb-2">Settings</h1>
+            <p className="text-slate-600">Configuration and preferences</p>
+          </div>
+        );
+      default:
+        return (
+          <div className="p-8">
+            <div className="mb-6">
+              <h1 className="text-2xl font-semibold text-slate-900 mb-2">Operations Dashboard</h1>
+              <p className="text-slate-600">Manage inventory imbalances across 3 DCs • Prevent chargebacks and maintain OTIF performance</p>
+            </div>
+
+            <div className="mb-6">
+              <KPICards />
+            </div>
+
+            <FilterBar />
+
+            <div className="grid grid-cols-3 gap-6">
+              <div className="col-span-2">
+                <ActionQueue
+                  items={actionQueueData}
+                  selectedId={selectedItemId}
+                  onSelectItem={setSelectedItemId}
+                />
+              </div>
+
+              <div className="col-span-1">
+                <RecommendationPanel item={selectedItem} />
+              </div>
+            </div>
+          </div>
+        );
+    }
+  };
+
+  return (
+    <div className="flex h-screen bg-slate-50">
+      <Sidebar currentView={currentView} onNavigate={setCurrentView} />
+
+      <div className="flex-1 flex flex-col overflow-hidden">
+        <Header />
+
+        <main className="flex-1 overflow-auto">
+          {renderMainContent()}
+        </main>
+      </div>
+    </div>
+  );
+}
+src/app/components/Sidebar.tsx
+import { LayoutDashboard, Package, TrendingUp, Settings, AlertTriangle, FileText, Users } from 'lucide-react';
+
+interface SidebarProps {
+  currentView: string;
+  onNavigate: (view: string) => void;
+}
+
+export function Sidebar({ currentView, onNavigate }: SidebarProps) {
+  const navItems = [
+    { icon: LayoutDashboard, label: 'Dashboard', view: 'dashboard' },
+    { icon: Package, label: 'Inventory', view: 'inventory' },
+    { icon: TrendingUp, label: 'Analytics', view: 'analytics' },
+    { icon: FileText, label: 'Reports', view: 'reports' },
+    { icon: Settings, label: 'Settings', view: 'settings' },
+  ];
+
+  return (
+    <div className="w-64 bg-slate-900 h-screen flex flex-col">
+      <div className="p-6 border-b border-slate-800">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
+            <Package className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <div className="text-white font-semibold">Prince of Peace</div>
+            <div className="text-slate-400 text-xs">Operations Hub</div>
+          </div>
+        </div>
+      </div>
+
+      <nav className="flex-1 p-4">
+        {navItems.map((item) => (
+          <button
+            key={item.label}
+            onClick={() => onNavigate(item.view)}
+            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg mb-1 transition-colors ${
+              currentView === item.view
+                ? 'bg-blue-600 text-white'
+                : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+          >
+            <item.icon className="w-5 h-5" />
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </nav>
+
+      <div className="p-4 border-t border-slate-800">
+        <div className="flex items-center gap-3 px-4 py-3">
+          <div className="w-8 h-8 bg-slate-700 rounded-full flex items-center justify-center text-slate-300">
+            JD
+          </div>
+          <div className="flex-1">
+            <div className="text-white text-sm">John Davis</div>
+            <div className="text-slate-400 text-xs">Ops Manager</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+src/app/components/Header.tsx
+import { Bell, Search } from 'lucide-react';
+
+export function Header() {
+  return (
+    <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8">
+      <div className="flex-1 max-w-xl">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search SKUs, DCs, or PO numbers..."
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <button className="relative p-2 hover:bg-slate-100 rounded-lg transition-colors">
+          <Bell className="w-5 h-5 text-slate-600" />
+          <span className="absolute top-1 right-1 w-2 h-2 bg-red-500 rounded-full"></span>
+        </button>
+        <div className="text-right">
+          <div className="text-sm text-slate-900">Today</div>
+          <div className="text-xs text-slate-500">April 18, 2026</div>
+        </div>
+      </div>
+    </header>
+  );
+}
+src/app/components/KPICards.tsx
+import { AlertTriangle, DollarSign, Clock, Package } from 'lucide-react';
+
+export function KPICards() {
+  const kpis = [
+    {
+      label: 'Urgent Actions',
+      value: '12',
+      subtext: '3 high risk',
+      icon: AlertTriangle,
+      iconBg: 'bg-red-100',
+      iconColor: 'text-red-600',
+    },
+    {
+      label: 'Total Chargeback Risk',
+      value: '$847K',
+      subtext: 'Next 7 days',
+      icon: DollarSign,
+      iconBg: 'bg-amber-100',
+      iconColor: 'text-amber-600',
+    },
+    {
+      label: 'Delayed Inbounds',
+      value: '23',
+      subtext: '8 FDA holds',
+      icon: Clock,
+      iconBg: 'bg-amber-100',
+      iconColor: 'text-amber-600',
+    },
+    {
+      label: 'Overstocked DCs',
+      value: '5',
+      subtext: 'Transfer capacity',
+      icon: Package,
+      iconBg: 'bg-green-100',
+      iconColor: 'text-green-600',
+    },
+  ];
+
+  return (
+    <div className="grid grid-cols-4 gap-4">
+      {kpis.map((kpi) => (
+        <div key={kpi.label} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-start justify-between">
+            <div className="flex-1">
+              <div className="text-slate-500 text-sm mb-1">{kpi.label}</div>
+              <div className="text-3xl font-semibold text-slate-900 mb-1">{kpi.value}</div>
+              <div className="text-xs text-slate-500">{kpi.subtext}</div>
+            </div>
+            <div className={`${kpi.iconBg} ${kpi.iconColor} p-3 rounded-lg`}>
+              <kpi.icon className="w-5 h-5" />
+            </div>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+src/app/components/FilterBar.tsx
+import { Search, Filter, SlidersHorizontal, AlertTriangle, FileWarning, Truck, CheckSquare } from 'lucide-react';
+
+export function FilterBar() {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-4">
+      <div className="p-4 border-b border-slate-200">
+        <div className="flex items-center gap-4">
+        <div className="flex-1 relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+          <input
+            type="text"
+            placeholder="Search by SKU, item name, or DC..."
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
+
+        <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option>All DCs</option>
+          <option>DC West</option>
+          <option>DC Central</option>
+          <option>DC East</option>
+        </select>
+
+        <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option>All Risk Levels</option>
+          <option>High Risk</option>
+          <option>Medium Risk</option>
+          <option>Low Risk</option>
+        </select>
+
+        <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option>All Recommendations</option>
+          <option>Transfer Now</option>
+          <option>Wait</option>
+          <option>Escalate</option>
+        </select>
+
+        <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option>All Channels</option>
+          <option>Costco</option>
+          <option>Whole Foods</option>
+          <option>Sprouts</option>
+          <option>Amazon</option>
+          <option>Independent Retailers</option>
+        </select>
+
+        <select className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent">
+          <option>Sort: Urgency</option>
+          <option>Sort: Penalty Exposure</option>
+          <option>Sort: Confidence</option>
+          <option>Sort: DC Name</option>
+        </select>
+        </div>
+      </div>
+
+      <div className="p-3 bg-slate-50 flex items-center gap-2">
+        <span className="text-xs text-slate-500 mr-2">Quick Filters:</span>
+        <button className="px-3 py-1.5 bg-white border border-red-300 text-red-700 rounded-lg text-xs font-medium hover:bg-red-50 transition-colors flex items-center gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5" />
+          High Risk Only
+        </button>
+        <button className="px-3 py-1.5 bg-white border border-amber-300 text-amber-700 rounded-lg text-xs font-medium hover:bg-amber-50 transition-colors flex items-center gap-1.5">
+          <FileWarning className="w-3.5 h-3.5" />
+          FDA Holds
+        </button>
+        <button className="px-3 py-1.5 bg-white border border-purple-300 text-purple-700 rounded-lg text-xs font-medium hover:bg-purple-50 transition-colors flex items-center gap-1.5">
+          <Truck className="w-3.5 h-3.5" />
+          Split Ship Risk
+        </button>
+        <button className="px-3 py-1.5 bg-white border border-blue-300 text-blue-700 rounded-lg text-xs font-medium hover:bg-blue-50 transition-colors flex items-center gap-1.5">
+          <CheckSquare className="w-3.5 h-3.5" />
+          Needs Approval
+        </button>
+      </div>
+    </div>
+  );
+}
+src/app/components/ActionQueue.tsx
+import { Clock, TrendingUp, AlertCircle, CheckCircle } from 'lucide-react';
+import { ActionItem } from '../data/actionQueueData';
+
+interface ActionQueueProps {
+  items: ActionItem[];
+  selectedId: string | null;
+  onSelectItem: (id: string) => void;
+}
+
+export function ActionQueue({ items, selectedId, onSelectItem }: ActionQueueProps) {
+  const getRiskBadgeStyles = (risk: string) => {
+    switch (risk) {
+      case 'High':
+        return 'bg-red-100 text-red-700 border-red-200';
+      case 'Medium':
+        return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'Low':
+        return 'bg-green-100 text-green-700 border-green-200';
+      default:
+        return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
+  const getRecommendationBadgeStyles = (rec: string) => {
+    switch (rec) {
+      case 'Transfer Now':
+        return 'bg-blue-600 text-white';
+      case 'Wait':
+        return 'bg-slate-600 text-white';
+      case 'Escalate':
+        return 'bg-purple-600 text-white';
+      default:
+        return 'bg-slate-600 text-white';
+    }
+  };
+
+  const getUrgencyIndicator = (days: number) => {
+    if (days <= 1) return { color: 'text-red-600', icon: AlertCircle, bg: 'bg-red-50' };
+    if (days <= 3) return { color: 'text-amber-600', icon: Clock, bg: 'bg-amber-50' };
+    return { color: 'text-green-600', icon: CheckCircle, bg: 'bg-green-50' };
+  };
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="border-b border-slate-200 p-6">
+        <h2 className="text-xl font-semibold text-slate-900">Action Queue</h2>
+        <p className="text-sm text-slate-500 mt-1">Prioritized inventory decisions requiring immediate attention</p>
+      </div>
+
+      <div className="overflow-auto max-h-[calc(100vh-280px)]">
+        {items.map((item, index) => {
+          const urgency = getUrgencyIndicator(item.daysUntilStockout);
+          const UrgencyIcon = urgency.icon;
+          const isSelected = selectedId === item.id;
+          const isTopPriority = index < 3 && item.riskLevel === 'High';
+
+          return (
+            <button
+              key={item.id}
+              onClick={() => onSelectItem(item.id)}
+              className={`w-full text-left p-5 border-b border-slate-100 hover:bg-slate-50 transition-colors relative ${
+                isSelected ? 'bg-blue-50 border-l-4 border-l-blue-600' : 'border-l-4 border-l-transparent'
+              } ${isTopPriority ? 'bg-red-50/30 border-l-4 border-l-red-500' : ''}`}
+            >
+              {isTopPriority && (
+                <div className="absolute top-2 right-2">
+                  <span className="px-2 py-1 bg-red-600 text-white text-xs font-semibold rounded">
+                    URGENT
+                  </span>
+                </div>
+              )}
+              <div className="flex items-start gap-4">
+                <div className={`${urgency.bg} p-3 rounded-lg flex-shrink-0`}>
+                  <UrgencyIcon className={`w-5 h-5 ${urgency.color}`} />
+                </div>
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-4 mb-2">
+                    <div>
+                      <div className="font-semibold text-slate-900">{item.itemName}</div>
+                      <div className="text-sm text-slate-500">{item.sku} • {item.category}</div>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${getRecommendationBadgeStyles(item.recommendation)}`}>
+                        {item.recommendation}
+                      </span>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium border ${getRiskBadgeStyles(item.riskLevel)}`}>
+                        {item.riskLevel} Risk
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-5 gap-4 mb-3">
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">At-Risk DC</div>
+                      <div className="text-sm font-medium text-slate-900">{item.atRiskDC}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Company-Wide Inv.</div>
+                      <div className="text-sm font-medium text-slate-900">{item.companyWideInventory}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Days to Stockout</div>
+                      <div className={`text-sm font-semibold ${urgency.color}`}>{item.daysUntilStockout} days</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Potential Penalty</div>
+                      <div className="text-sm font-semibold text-slate-900">{item.potentialPenalty}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-slate-500 mb-1">Confidence</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-slate-200 rounded-full h-1.5">
+                          <div
+                            className="bg-blue-600 h-1.5 rounded-full"
+                            style={{ width: `${item.confidence}%` }}
+                          ></div>
+                        </div>
+                        <span className="text-sm font-medium text-slate-900">{item.confidence}%</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2 text-sm text-slate-600">
+                      <TrendingUp className="w-4 h-4" />
+                      <span>{item.reason}</span>
+                    </div>
+                    <div className="text-xs text-slate-400">{item.updatedAt}</div>
+                  </div>
+                </div>
+              </div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+src/app/components/RecommendationPanel.tsx
+import { ArrowRight, CheckCircle2, XCircle, AlertTriangle, TrendingUp, Clock, DollarSign, Package, MapPin } from 'lucide-react';
+import { ActionItem } from '../data/actionQueueData';
+
+interface RecommendationPanelProps {
+  item: ActionItem | null;
+}
+
+export function RecommendationPanel({ item }: RecommendationPanelProps) {
+  if (!item) {
+    return (
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-12 flex flex-col items-center justify-center text-center h-full">
+        <div className="w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4">
+          <TrendingUp className="w-8 h-8 text-slate-400" />
+        </div>
+        <h3 className="text-lg font-semibold text-slate-900 mb-2">No Item Selected</h3>
+        <p className="text-sm text-slate-500 max-w-sm">
+          Select an item from the Action Queue to view detailed recommendations and make informed decisions
+        </p>
+      </div>
+    );
+  }
+
+  const getRecommendationColor = (rec: string) => {
+    switch (rec) {
+      case 'Transfer Now':
+        return { bg: 'bg-blue-600', text: 'text-blue-600', lightBg: 'bg-blue-50' };
+      case 'Wait':
+        return { bg: 'bg-slate-600', text: 'text-slate-600', lightBg: 'bg-slate-50' };
+      case 'Escalate':
+        return { bg: 'bg-purple-600', text: 'text-purple-600', lightBg: 'bg-purple-50' };
+      default:
+        return { bg: 'bg-slate-600', text: 'text-slate-600', lightBg: 'bg-slate-50' };
+    }
+  };
+
+  const colors = getRecommendationColor(item.recommendation);
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-auto max-h-[calc(100vh-180px)]">
+      {/* Header */}
+      <div className={`${colors.lightBg} border-b border-slate-200 p-6`}>
+        <div className="flex items-center gap-3 mb-2">
+          <span className={`${colors.bg} text-white px-4 py-2 rounded-lg font-semibold`}>
+            {item.recommendation}
+          </span>
+          <span className="text-sm text-slate-500">Recommended Action</span>
+        </div>
+        <h3 className="text-xl font-semibold text-slate-900 mb-1">{item.itemName}</h3>
+        <p className="text-sm text-slate-600">{item.sku} • {item.atRiskDC}</p>
+      </div>
+
+      {/* Summary */}
+      <div className="p-6 border-b border-slate-200 bg-slate-50">
+        <p className="text-slate-700">
+          {item.recommendation === 'Transfer Now' &&
+            `Execute immediate transfer to prevent ${item.daysUntilStockout}-day stockout and avoid ${item.potentialPenalty} in penalties.`
+          }
+          {item.recommendation === 'Wait' &&
+            `Monitor inbound shipment. Current trajectory shows arrival before stockout with minimal risk exposure.`
+          }
+          {item.recommendation === 'Escalate' &&
+            `Critical situation requiring executive decision. No standard transfer options available.`
+          }
+        </p>
+      </div>
+
+      {/* Decision Comparison */}
+      <div className="p-6 border-b border-slate-200">
+        <h4 className="font-semibold text-slate-900 mb-4">Decision Comparison</h4>
+
+        <div className="grid grid-cols-2 gap-4">
+          {/* Option A: Transfer */}
+          <div className="border-2 border-blue-200 rounded-xl p-4 bg-blue-50/50">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                <ArrowRight className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900">Option A: Transfer Now</div>
+                <div className="text-xs text-slate-500">Certain cost, eliminates risk</div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <MapPin className="w-3.5 h-3.5" />
+                  Source DC
+                </div>
+                <div className="text-sm font-medium text-slate-900">{item.transferDetails?.sourceDC || 'N/A'}</div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <Package className="w-3.5 h-3.5" />
+                  Units Available
+                </div>
+                <div className="text-sm font-medium text-slate-900">
+                  {item.transferDetails?.unitsAvailable.toLocaleString() || 'N/A'}
+                </div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  Transfer Lead Time
+                </div>
+                <div className="text-sm font-medium text-slate-900">{item.transferDetails?.leadTime || 'N/A'}</div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Estimated Arrival
+                </div>
+                <div className="text-sm font-medium text-green-700">{item.transferDetails?.estimatedArrival || 'N/A'}</div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Inter-DC Freight Cost
+                </div>
+                <div className="text-sm font-semibold text-slate-900">{item.transferDetails?.cost || 'N/A'}</div>
+              </div>
+
+              <div>
+                <div className="text-xs text-slate-500 mb-1">Post-Transfer Source Health</div>
+                <div className="text-sm font-medium text-slate-900">{item.transferDetails?.postTransferHealth || 'N/A'}</div>
+              </div>
+
+              <div className="pt-2 border-t border-blue-200">
+                <div className="text-xs text-slate-500 mb-2">Confidence Level</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-blue-200 rounded-full h-2">
+                    <div
+                      className="bg-blue-600 h-2 rounded-full"
+                      style={{ width: `${item.transferDetails?.confidence || 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold text-blue-700">{item.transferDetails?.confidence || 0}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Option B: Wait */}
+          <div className="border-2 border-amber-200 rounded-xl p-4 bg-amber-50/50">
+            <div className="flex items-center gap-2 mb-4">
+              <div className="w-8 h-8 bg-amber-600 rounded-lg flex items-center justify-center">
+                <Clock className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900">Option B: Wait for Inbound</div>
+                <div className="text-xs text-slate-500">Uncertain timing, penalty risk</div>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <Clock className="w-3.5 h-3.5" />
+                  Inbound PO ETA
+                </div>
+                <div className="text-sm font-medium text-slate-900">{item.inboundDetails?.poEta || 'N/A'}</div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Delay Risk
+                </div>
+                <div className="text-sm font-medium text-amber-700">{item.inboundDetails?.delayRisk || 'N/A'}</div>
+              </div>
+
+              {item.inboundDetails?.complianceFlags && item.inboundDetails.complianceFlags.length > 0 && (
+                <div>
+                  <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                    <XCircle className="w-3.5 h-3.5" />
+                    Compliance Flags
+                  </div>
+                  {item.inboundDetails.complianceFlags.map((flag, idx) => (
+                    <div key={idx} className="text-sm font-medium text-red-700 mb-1">{flag}</div>
+                  ))}
+                </div>
+              )}
+
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <AlertTriangle className="w-3.5 h-3.5" />
+                  Stockout Window
+                </div>
+                <div className="text-sm font-medium text-slate-900">{item.inboundDetails?.stockoutWindow || 'N/A'}</div>
+              </div>
+
+              <div>
+                <div className="flex items-center gap-2 text-xs text-slate-500 mb-1">
+                  <DollarSign className="w-3.5 h-3.5" />
+                  Estimated Penalty Risk
+                </div>
+                <div className="text-sm font-semibold text-red-700">{item.inboundDetails?.penaltyRisk || 'N/A'}</div>
+              </div>
+
+              <div className="pt-2 border-t border-amber-200">
+                <div className="text-xs text-slate-500 mb-2">Confidence Level</div>
+                <div className="flex items-center gap-2">
+                  <div className="flex-1 bg-amber-200 rounded-full h-2">
+                    <div
+                      className="bg-amber-600 h-2 rounded-full"
+                      style={{ width: `${item.inboundDetails?.confidence || 0}%` }}
+                    ></div>
+                  </div>
+                  <span className="text-sm font-semibold text-amber-700">{item.inboundDetails?.confidence || 0}%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Why This Recommendation */}
+      <div className="p-6 border-b border-slate-200">
+        <h4 className="font-semibold text-slate-900 mb-3">Why This Recommendation</h4>
+        <ul className="space-y-2">
+          {item.reasoning.map((reason, idx) => (
+            <li key={idx} className="flex items-start gap-3">
+              <div className="w-5 h-5 bg-blue-100 rounded-full flex items-center justify-center flex-shrink-0 mt-0.5">
+                <CheckCircle2 className="w-3 h-3 text-blue-600" />
+              </div>
+              <span className="text-sm text-slate-700">{reason}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+
+      {/* Evidence & Timeline */}
+      <div className="p-6 border-b border-slate-200 bg-slate-50">
+        <h4 className="font-semibold text-slate-900 mb-3">Evidence & Timeline</h4>
+        <div className="space-y-2">
+          <div className="flex items-start gap-2 text-sm">
+            <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2"></div>
+            <div>
+              <span className="text-slate-500 text-xs">Apr 15, 10:24am</span>
+              <p className="text-slate-700">Inbound PO #84729 delayed - port congestion at Long Beach</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <div className="w-1.5 h-1.5 bg-blue-600 rounded-full mt-2"></div>
+            <div>
+              <span className="text-slate-500 text-xs">Apr 14, 3:45pm</span>
+              <p className="text-slate-700">Velocity spike detected at {item.atRiskDC} - major customer order</p>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 text-sm">
+            <div className="w-1.5 h-1.5 bg-amber-600 rounded-full mt-2"></div>
+            <div>
+              <span className="text-slate-500 text-xs">Apr 12, 9:12am</span>
+              <p className="text-slate-700">Chargeback warning: {item.atRiskDC} below minimum safety stock</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Action Buttons */}
+      <div className="p-6 bg-slate-50">
+        <div className="grid grid-cols-2 gap-3 mb-3">
+          <button className="px-4 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium">
+            Approve Transfer
+          </button>
+          <button className="px-4 py-3 bg-slate-600 text-white rounded-lg hover:bg-slate-700 transition-colors font-medium">
+            Wait and Monitor
+          </button>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <button className="px-4 py-3 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium">
+            Escalate
+          </button>
+          <button className="px-4 py-3 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium">
+            Assign Owner
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+src/app/components/InventoryScreen.tsx
+import { AlertTriangle, TrendingUp, TrendingDown, Package, Clock, ArrowRight } from 'lucide-react';
+
+interface InventoryItem {
+  sku: string;
+  itemName: string;
+  category: string;
+  dcWest: { dos: number; onHand: number; status: 'healthy' | 'low' | 'critical' | 'overstock' };
+  dcCentral: { dos: number; onHand: number; status: 'healthy' | 'low' | 'critical' | 'overstock' };
+  dcEast: { dos: number; onHand: number; status: 'healthy' | 'low' | 'critical' | 'overstock' };
+  imbalance: 'severe' | 'moderate' | 'balanced';
+  inboundPO: string | null;
+}
+
+export function InventoryScreen() {
+  const inventoryData: InventoryItem[] = [
+    {
+      sku: 'POP-GT-1001',
+      itemName: 'Ginger Honey Crystals 30ct',
+      category: 'Instant Beverages',
+      dcWest: { dos: 4, onHand: 2800, status: 'critical' },
+      dcCentral: { dos: 96, onHand: 38400, status: 'overstock' },
+      dcEast: { dos: 22, onHand: 8800, status: 'healthy' },
+      imbalance: 'severe',
+      inboundPO: 'PO-84729',
+    },
+    {
+      sku: 'POP-RG-2045',
+      itemName: 'Red Panax Ginseng Extract 30 vials',
+      category: 'Herbal Supplements',
+      dcWest: { dos: 18, onHand: 5400, status: 'healthy' },
+      dcCentral: { dos: 58, onHand: 17400, status: 'healthy' },
+      dcEast: { dos: 2, onHand: 600, status: 'critical' },
+      imbalance: 'moderate',
+      inboundPO: 'FDA Hold',
+    },
+    {
+      sku: 'POP-WT-3012',
+      itemName: 'White Peony Instant Tea 100ct',
+      category: 'Tea & Herbal Drinks',
+      dcWest: { dos: 28, onHand: 11200, status: 'healthy' },
+      dcCentral: { dos: 32, onHand: 12800, status: 'healthy' },
+      dcEast: { dos: 36, onHand: 14400, status: 'healthy' },
+      imbalance: 'balanced',
+      inboundPO: 'PO-84801',
+    },
+    {
+      sku: 'POP-OL-4023',
+      itemName: 'Oolong Tea 100 bags',
+      category: 'Tea & Herbal Drinks',
+      dcWest: { dos: 87, onHand: 34800, status: 'overstock' },
+      dcCentral: { dos: 24, onHand: 9600, status: 'healthy' },
+      dcEast: { dos: 6, onHand: 2400, status: 'low' },
+      imbalance: 'severe',
+      inboundPO: 'PO-84856',
+    },
+    {
+      sku: 'POP-HC-5008',
+      itemName: 'Honeysuckle Cooling Herb Candy 12oz',
+      category: 'Herbal Candy',
+      dcWest: { dos: 42, onHand: 16800, status: 'healthy' },
+      dcCentral: { dos: 12, onHand: 4800, status: 'low' },
+      dcEast: { dos: 52, onHand: 20800, status: 'healthy' },
+      imbalance: 'moderate',
+      inboundPO: 'PO-84912',
+    },
+    {
+      sku: 'POP-GI-6115',
+      itemName: 'Ginger Chews Original 4.4oz',
+      category: 'Herbal Candy',
+      dcWest: { dos: 8, onHand: 3200, status: 'low' },
+      dcCentral: { dos: 5, onHand: 2000, status: 'critical' },
+      dcEast: { dos: 6, onHand: 2400, status: 'low' },
+      imbalance: 'balanced',
+      inboundPO: 'Factory Hold',
+    },
+  ];
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'critical': return 'bg-red-100 text-red-700 border-red-200';
+      case 'low': return 'bg-amber-100 text-amber-700 border-amber-200';
+      case 'healthy': return 'bg-green-100 text-green-700 border-green-200';
+      case 'overstock': return 'bg-blue-100 text-blue-700 border-blue-200';
+      default: return 'bg-slate-100 text-slate-700 border-slate-200';
+    }
+  };
+
+  const getImbalanceIndicator = (imbalance: string) => {
+    switch (imbalance) {
+      case 'severe':
+        return { icon: AlertTriangle, color: 'text-red-600', bg: 'bg-red-50', label: 'Severe Imbalance' };
+      case 'moderate':
+        return { icon: TrendingUp, color: 'text-amber-600', bg: 'bg-amber-50', label: 'Moderate Imbalance' };
+      default:
+        return { icon: Package, color: 'text-green-600', bg: 'bg-green-50', label: 'Balanced' };
+    }
+  };
+
+  return (
+    <div className="p-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-slate-900 mb-2">Inventory Overview</h1>
+        <p className="text-slate-600">SKU-level inventory health across all distribution centers</p>
+      </div>
+
+      {/* Summary Cards */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Critical SKUs</div>
+              <div className="text-3xl font-semibold text-red-600">8</div>
+            </div>
+            <AlertTriangle className="w-8 h-8 text-red-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Severe Imbalances</div>
+              <div className="text-3xl font-semibold text-amber-600">12</div>
+            </div>
+            <TrendingDown className="w-8 h-8 text-amber-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Overstocked</div>
+              <div className="text-3xl font-semibold text-blue-600">5</div>
+            </div>
+            <Package className="w-8 h-8 text-blue-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Inbound POs</div>
+              <div className="text-3xl font-semibold text-slate-900">23</div>
+            </div>
+            <Clock className="w-8 h-8 text-slate-600" />
+          </div>
+        </div>
+      </div>
+
+      {/* Inventory Matrix */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="p-6 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-900">Inventory Matrix</h2>
+          <p className="text-sm text-slate-500 mt-1">Days of supply and on-hand units by DC</p>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-slate-50 border-b border-slate-200">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">SKU</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Product</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">DC West</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">DC Central</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">DC East</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Imbalance</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Inbound PO</th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-slate-100">
+              {inventoryData.map((item) => {
+                const imbalance = getImbalanceIndicator(item.imbalance);
+                const ImbalanceIcon = imbalance.icon;
+
+                return (
+                  <tr key={item.sku} className="hover:bg-slate-50">
+                    <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{item.sku}</td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm font-medium text-slate-900">{item.itemName}</div>
+                      <div className="text-xs text-slate-500">{item.category}</div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className={`inline-flex flex-col items-center px-3 py-2 rounded-lg border ${getStatusColor(item.dcWest.status)}`}>
+                        <div className="text-lg font-semibold">{item.dcWest.dos}</div>
+                        <div className="text-xs">days</div>
+                        <div className="text-xs mt-1">{item.dcWest.onHand.toLocaleString()} units</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className={`inline-flex flex-col items-center px-3 py-2 rounded-lg border ${getStatusColor(item.dcCentral.status)}`}>
+                        <div className="text-lg font-semibold">{item.dcCentral.dos}</div>
+                        <div className="text-xs">days</div>
+                        <div className="text-xs mt-1">{item.dcCentral.onHand.toLocaleString()} units</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <div className={`inline-flex flex-col items-center px-3 py-2 rounded-lg border ${getStatusColor(item.dcEast.status)}`}>
+                        <div className="text-lg font-semibold">{item.dcEast.dos}</div>
+                        <div className="text-xs">days</div>
+                        <div className="text-xs mt-1">{item.dcEast.onHand.toLocaleString()} units</div>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className={`flex items-center justify-center gap-2 ${imbalance.bg} px-3 py-2 rounded-lg`}>
+                        <ImbalanceIcon className={`w-4 h-4 ${imbalance.color}`} />
+                        <span className={`text-xs font-medium ${imbalance.color}`}>{imbalance.label}</span>
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">
+                      {item.inboundPO || '—'}
+                    </td>
+                    <td className="px-6 py-4 text-center">
+                      <button className="inline-flex items-center gap-1 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors">
+                        Review
+                        <ArrowRight className="w-3 h-3" />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  );
+}
+src/app/components/AnalyticsScreen.tsx
+import { DollarSign, TrendingDown, AlertTriangle, Package, BarChart3 } from 'lucide-react';
+
+export function AnalyticsScreen() {
+  const chargebackData = [
+    { cause: 'Short Ship', count: 23, cost: '$342K', percent: 38 },
+    { cause: 'Late Delivery', count: 18, cost: '$267K', percent: 29 },
+    { cause: 'Split Shipment', count: 15, cost: '$198K', percent: 22 },
+    { cause: 'Stock Out', count: 8, cost: '$98K', percent: 11 },
+  ];
+
+  const channelRisk = [
+    { channel: 'Costco', exposure: '$312K', incidents: 12, otif: '94%' },
+    { channel: 'Whole Foods', exposure: '$245K', incidents: 9, otif: '96%' },
+    { channel: 'Sprouts', exposure: '$178K', incidents: 7, otif: '97%' },
+    { channel: 'Amazon', exposure: '$142K', incidents: 6, otif: '98%' },
+    { channel: 'Independent', exposure: '$70K', incidents: 3, otif: '99%' },
+  ];
+
+  const dcRisk = [
+    { dc: 'DC West', exposure: '$389K', incidents: 16, fillRate: '92%' },
+    { dc: 'DC Central', exposure: '$312K', incidents: 11, fillRate: '95%' },
+    { dc: 'DC East', exposure: '$246K', incidents: 10, fillRate: '94%' },
+  ];
+
+  const topRiskSKUs = [
+    { sku: 'POP-GT-1001', name: 'Ginger Honey Crystals', incidents: 8, exposure: '$124K' },
+    { sku: 'POP-OL-4023', name: 'Oolong Tea 100 bags', incidents: 6, exposure: '$156K' },
+    { sku: 'POP-GI-6115', name: 'Ginger Chews Original', incidents: 5, exposure: '$213K' },
+    { sku: 'POP-RG-2045', name: 'Red Panax Ginseng', incidents: 4, exposure: '$89K' },
+  ];
+
+  return (
+    <div className="p-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-slate-900 mb-2">Analytics</h1>
+        <p className="text-slate-600">Chargeback analysis and operational risk insights</p>
+      </div>
+
+      {/* Summary KPIs */}
+      <div className="grid grid-cols-4 gap-4 mb-6">
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Total Chargebacks (30d)</div>
+              <div className="text-3xl font-semibold text-red-600">$947K</div>
+              <div className="text-xs text-red-600 mt-1">↑ 18% vs last month</div>
+            </div>
+            <DollarSign className="w-8 h-8 text-red-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Avg OTIF Score</div>
+              <div className="text-3xl font-semibold text-amber-600">94.2%</div>
+              <div className="text-xs text-amber-600 mt-1">Target: 98%</div>
+            </div>
+            <TrendingDown className="w-8 h-8 text-amber-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Late Shipments</div>
+              <div className="text-3xl font-semibold text-slate-900">47</div>
+              <div className="text-xs text-green-600 mt-1">↓ 12% vs last month</div>
+            </div>
+            <AlertTriangle className="w-8 h-8 text-slate-600" />
+          </div>
+        </div>
+        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-slate-500 text-sm mb-1">Split Shipments</div>
+              <div className="text-3xl font-semibold text-slate-900">31</div>
+              <div className="text-xs text-red-600 mt-1">↑ 24% vs last month</div>
+            </div>
+            <Package className="w-8 h-8 text-slate-600" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6 mb-6">
+        {/* Chargeback by Cause */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-900">Chargebacks by Cause</h2>
+            <p className="text-sm text-slate-500 mt-1">Last 30 days</p>
+          </div>
+          <div className="p-6">
+            <div className="space-y-4">
+              {chargebackData.map((item) => (
+                <div key={item.cause}>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-slate-900">{item.cause}</span>
+                    <div className="flex items-center gap-4">
+                      <span className="text-sm text-slate-500">{item.count} incidents</span>
+                      <span className="text-sm font-semibold text-slate-900">{item.cost}</span>
+                    </div>
+                  </div>
+                  <div className="w-full bg-slate-200 rounded-full h-2">
+                    <div
+                      className="bg-red-600 h-2 rounded-full"
+                      style={{ width: `${item.percent}%` }}
+                    ></div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Risk by Channel */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-900">Penalty Exposure by Channel</h2>
+            <p className="text-sm text-slate-500 mt-1">Next 7 days</p>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {channelRisk.map((item) => (
+                <div key={item.channel} className="flex items-center justify-between p-3 bg-slate-50 rounded-lg">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-slate-900">{item.channel}</div>
+                    <div className="text-xs text-slate-500">{item.incidents} at-risk orders</div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <div className="text-sm font-semibold text-slate-900">{item.exposure}</div>
+                      <div className="text-xs text-slate-500">exposure</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-sm font-semibold ${parseFloat(item.otif) >= 98 ? 'text-green-600' : 'text-amber-600'}`}>
+                        {item.otif}
+                      </div>
+                      <div className="text-xs text-slate-500">OTIF</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-6">
+        {/* Risk by DC */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-900">Penalty Exposure by DC</h2>
+            <p className="text-sm text-slate-500 mt-1">Next 7 days</p>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {dcRisk.map((item) => (
+                <div key={item.dc} className="flex items-center justify-between p-4 border border-slate-200 rounded-lg">
+                  <div className="flex-1">
+                    <div className="text-sm font-semibold text-slate-900">{item.dc}</div>
+                    <div className="text-xs text-slate-500">{item.incidents} critical SKUs</div>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <div className="text-right">
+                      <div className="text-lg font-semibold text-red-600">{item.exposure}</div>
+                      <div className="text-xs text-slate-500">penalty exposure</div>
+                    </div>
+                    <div className="text-right">
+                      <div className={`text-lg font-semibold ${parseFloat(item.fillRate) >= 95 ? 'text-green-600' : 'text-amber-600'}`}>
+                        {item.fillRate}
+                      </div>
+                      <div className="text-xs text-slate-500">fill rate</div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Top Risk SKUs */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <div className="p-6 border-b border-slate-200">
+            <h2 className="text-lg font-semibold text-slate-900">Highest-Risk SKUs</h2>
+            <p className="text-sm text-slate-500 mt-1">By chargeback frequency (30d)</p>
+          </div>
+          <div className="p-6">
+            <div className="space-y-3">
+              {topRiskSKUs.map((item, index) => (
+                <div key={item.sku} className="flex items-center gap-4 p-3 border border-slate-200 rounded-lg">
+                  <div className={`flex items-center justify-center w-8 h-8 rounded-full font-semibold text-sm ${
+                    index === 0 ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-700'
+                  }`}>
+                    {index + 1}
+                  </div>
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-slate-900">{item.name}</div>
+                    <div className="text-xs text-slate-500">{item.sku}</div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm font-semibold text-red-600">{item.exposure}</div>
+                    <div className="text-xs text-slate-500">{item.incidents} incidents</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+src/app/components/ReportsScreen.tsx
+import { FileText, Download, Calendar, TrendingUp, CheckCircle } from 'lucide-react';
+
+export function ReportsScreen() {
+  const reports = [
+    {
+      name: 'Executive Summary',
+      description: 'Weekly operations summary with key metrics and trends',
+      frequency: 'Weekly',
+      lastGenerated: 'Apr 15, 2026',
+      icon: TrendingUp,
+    },
+    {
+      name: 'Action Queue Export',
+      description: 'Current action queue with all recommendations and details',
+      frequency: 'On-demand',
+      lastGenerated: 'Today',
+      icon: CheckCircle,
+    },
+    {
+      name: 'Weekly Imbalance Report',
+      description: 'Inventory imbalances across all DCs with severity indicators',
+      frequency: 'Weekly',
+      lastGenerated: 'Apr 15, 2026',
+      icon: FileText,
+    },
+    {
+      name: 'Chargeback Summary',
+      description: 'Chargeback costs by cause, channel, and DC',
+      frequency: 'Monthly',
+      lastGenerated: 'Apr 1, 2026',
+      icon: FileText,
+    },
+    {
+      name: 'Transfer Recommendation Log',
+      description: 'Complete history of transfer recommendations and outcomes',
+      frequency: 'On-demand',
+      lastGenerated: 'Apr 16, 2026',
+      icon: FileText,
+    },
+    {
+      name: 'Before/After Scenario',
+      description: 'Comparison of manual decisions vs system recommendations',
+      frequency: 'Monthly',
+      lastGenerated: 'Apr 1, 2026',
+      icon: TrendingUp,
+    },
+  ];
+
+  return (
+    <div className="p-8">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold text-slate-900 mb-2">Reports</h1>
+        <p className="text-slate-600">Export and summary views for operations reporting</p>
+      </div>
+
+      {/* Quick Actions */}
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-blue-100 rounded-lg flex items-center justify-center">
+              <Download className="w-5 h-5 text-blue-600" />
+            </div>
+            <h3 className="font-semibold text-slate-900">Quick Export</h3>
+          </div>
+          <p className="text-sm text-slate-600 mb-4">Download current action queue as CSV</p>
+          <button className="w-full px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm">
+            Export Now
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-green-100 rounded-lg flex items-center justify-center">
+              <TrendingUp className="w-5 h-5 text-green-600" />
+            </div>
+            <h3 className="font-semibold text-slate-900">Performance Summary</h3>
+          </div>
+          <p className="text-sm text-slate-600 mb-4">Generate executive summary report</p>
+          <button className="w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium text-sm">
+            Generate Report
+          </button>
+        </div>
+
+        <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <Calendar className="w-5 h-5 text-purple-600" />
+            </div>
+            <h3 className="font-semibold text-slate-900">Scheduled Reports</h3>
+          </div>
+          <p className="text-sm text-slate-600 mb-4">Configure automated reporting</p>
+          <button className="w-full px-4 py-2 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium text-sm">
+            Manage Schedule
+          </button>
+        </div>
+      </div>
+
+      {/* Available Reports */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="p-6 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-900">Available Reports</h2>
+          <p className="text-sm text-slate-500 mt-1">Standard reports and exports</p>
+        </div>
+
+        <div className="divide-y divide-slate-100">
+          {reports.map((report) => {
+            const Icon = report.icon;
+            return (
+              <div key={report.name} className="p-6 hover:bg-slate-50 transition-colors">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-start gap-4 flex-1">
+                    <div className="w-12 h-12 bg-slate-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-6 h-6 text-slate-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-slate-900 mb-1">{report.name}</h3>
+                      <p className="text-sm text-slate-600 mb-2">{report.description}</p>
+                      <div className="flex items-center gap-4 text-xs text-slate-500">
+                        <span>Frequency: {report.frequency}</span>
+                        <span>•</span>
+                        <span>Last generated: {report.lastGenerated}</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 flex-shrink-0">
+                    <button className="px-4 py-2 bg-white border border-slate-300 text-slate-700 rounded-lg hover:bg-slate-50 transition-colors font-medium text-sm">
+                      Preview
+                    </button>
+                    <button className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium text-sm flex items-center gap-2">
+                      <Download className="w-4 h-4" />
+                      Export
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Recent Exports */}
+      <div className="mt-6 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="p-6 border-b border-slate-200">
+          <h2 className="text-lg font-semibold text-slate-900">Recent Exports</h2>
+          <p className="text-sm text-slate-500 mt-1">Your download history</p>
+        </div>
+
+        <div className="p-6">
+          <div className="space-y-3">
+            {[
+              { name: 'action-queue-2026-04-18.csv', date: 'Today, 10:24am', size: '42 KB' },
+              { name: 'weekly-imbalance-2026-04-15.pdf', date: 'Apr 15, 3:45pm', size: '1.2 MB' },
+              { name: 'chargeback-summary-march-2026.xlsx', date: 'Apr 1, 9:12am', size: '890 KB' },
+            ].map((file) => (
+              <div key={file.name} className="flex items-center justify-between p-3 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+                <div className="flex items-center gap-3">
+                  <FileText className="w-5 h-5 text-slate-400" />
+                  <div>
+                    <div className="text-sm font-medium text-slate-900">{file.name}</div>
+                    <div className="text-xs text-slate-500">{file.date} • {file.size}</div>
+                  </div>
+                </div>
+                <button className="px-3 py-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors font-medium text-sm flex items-center gap-1">
+                  <Download className="w-4 h-4" />
+                  Download
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+src/app/data/actionQueueData.ts
+export interface ActionItem {
+  id: string;
+  sku: string;
+  itemName: string;
+  category: string;
+  brand: string;
+  atRiskDC: string;
+  daysUntilStockout: number;
+  companyWideInventory: string;
+  recommendation: 'Transfer Now' | 'Wait' | 'Escalate';
+  riskLevel: 'High' | 'Medium' | 'Low';
+  potentialPenalty: string;
+  reason: string;
+  confidence: number;
+  updatedAt: string;
+  transferDetails?: {
+    sourceDC: string;
+    unitsAvailable: number;
+    leadTime: string;
+    estimatedArrival: string;
+    cost: string;
+    postTransferHealth: string;
+    confidence: number;
+  };
+  inboundDetails?: {
+    poEta: string;
+    delayRisk: string;
+    complianceFlags: string[];
+    stockoutWindow: string;
+    penaltyRisk: string;
+    confidence: number;
+  };
+  reasoning: string[];
+}
+
+export const actionQueueData: ActionItem[] = [
+  {
+    id: '1',
+    sku: 'POP-GT-1001',
+    itemName: 'Ginger Honey Crystals 30ct',
+    category: 'Instant Beverages',
+    brand: 'Prince of Peace',
+    atRiskDC: 'DC West',
+    daysUntilStockout: 2,
+    companyWideInventory: '3.2 months (concentrated)',
+    recommendation: 'Transfer Now',
+    riskLevel: 'High',
+    potentialPenalty: '$124K',
+    reason: 'Inventory concentrated at DC Central, split-ship risk',
+    confidence: 94,
+    updatedAt: '5 min ago',
+    transferDetails: {
+      sourceDC: 'DC Central',
+      unitsAvailable: 12500,
+      leadTime: '2-3 days',
+      estimatedArrival: 'Apr 21, 2pm',
+      cost: '$1,800',
+      postTransferHealth: 'Healthy (2.8 months coverage)',
+      confidence: 94,
+    },
+    inboundDetails: {
+      poEta: 'Apr 28 (delayed)',
+      delayRisk: 'High - port congestion',
+      complianceFlags: ['Long Beach port delays'],
+      stockoutWindow: '8 days exposed',
+      penaltyRisk: '$124K chargeback + OTIF penalty',
+      confidence: 72,
+    },
+    reasoning: [
+      'Stockout projected in 2 days at DC West while DC Central has 3.2 months',
+      'Inbound container delayed 8 days due to port congestion',
+      'Major retail customer will split-ship causing chargebacks',
+      'Transfer cost ($1.8K) far lower than penalty exposure ($124K)',
+    ],
+  },
+  {
+    id: '2',
+    sku: 'POP-RG-2045',
+    itemName: 'Red Panax Ginseng Extract 30 vials',
+    category: 'Herbal Supplements',
+    brand: 'Prince of Peace',
+    atRiskDC: 'DC East',
+    daysUntilStockout: 1,
+    companyWideInventory: '2.1 months (imbalanced)',
+    recommendation: 'Transfer Now',
+    riskLevel: 'High',
+    potentialPenalty: '$89K',
+    reason: 'Stockout imminent, FDA hold on PO',
+    confidence: 98,
+    updatedAt: '12 min ago',
+    transferDetails: {
+      sourceDC: 'DC Central',
+      unitsAvailable: 8400,
+      leadTime: '3-4 days',
+      estimatedArrival: 'Apr 22, 10am',
+      cost: '$2,200',
+      postTransferHealth: 'Healthy (1.9 months coverage)',
+      confidence: 98,
+    },
+    inboundDetails: {
+      poEta: 'Unknown (FDA hold)',
+      delayRisk: 'Critical - FDA facility inspection',
+      complianceFlags: ['FDA hold - China supplier facility inspection', 'Release date unknown'],
+      stockoutWindow: 'Unknown duration',
+      penaltyRisk: '$89K chargeback + customer allocation',
+      confidence: 45,
+    },
+    reasoning: [
+      'Stockout in 1 day at DC East - immediate action required',
+      'FDA hold on China inbound with no release timeline',
+      'DC Central has adequate inventory (2.1 months total company-wide)',
+      'Premium product with high customer expectations and chargeback exposure',
+    ],
+  },
+  {
+    id: '3',
+    sku: 'POP-WT-3012',
+    itemName: 'White Peony Instant Tea 100ct',
+    category: 'Tea & Herbal Drinks',
+    brand: 'Prince of Peace',
+    atRiskDC: 'DC West',
+    daysUntilStockout: 4,
+    companyWideInventory: '4.5 months (balanced)',
+    recommendation: 'Wait',
+    riskLevel: 'Medium',
+    potentialPenalty: '$42K',
+    reason: 'Inbound arriving before stockout',
+    confidence: 87,
+    updatedAt: '18 min ago',
+    transferDetails: {
+      sourceDC: 'DC Central',
+      unitsAvailable: 6800,
+      leadTime: '2-3 days',
+      estimatedArrival: 'Apr 22, 4pm',
+      cost: '$1,400',
+      postTransferHealth: 'Marginal (1.8 months coverage)',
+      confidence: 71,
+    },
+    inboundDetails: {
+      poEta: 'Apr 21, 8am',
+      delayRisk: 'Low - ocean container on schedule',
+      complianceFlags: [],
+      stockoutWindow: 'No stockout expected',
+      penaltyRisk: '<$8K buffer risk',
+      confidence: 87,
+    },
+    reasoning: [
+      'Inbound container arriving 3 days before projected stockout',
+      'Transfer would cost more ($1.4K) than minimal penalty risk',
+      'DC Central has limited spare capacity post-transfer',
+      'Current vessel tracking shows on-time arrival at Long Beach',
+    ],
+  },
+  {
+    id: '4',
+    sku: 'POP-OL-4023',
+    itemName: 'Oolong Tea 100 bags',
+    category: 'Tea & Herbal Drinks',
+    brand: 'Prince of Peace',
+    atRiskDC: 'DC East',
+    daysUntilStockout: 3,
+    companyWideInventory: '2.9 months (concentrated)',
+    recommendation: 'Transfer Now',
+    riskLevel: 'High',
+    potentialPenalty: '$156K',
+    reason: 'Stockout before next receipt',
+    confidence: 91,
+    updatedAt: '22 min ago',
+    transferDetails: {
+      sourceDC: 'DC West',
+      unitsAvailable: 22400,
+      leadTime: '3-4 days',
+      estimatedArrival: 'Apr 22, 6pm',
+      cost: '$2,100',
+      postTransferHealth: 'Healthy (2.3 months coverage)',
+      confidence: 91,
+    },
+    inboundDetails: {
+      poEta: 'Apr 26',
+      delayRisk: 'Medium - customs processing',
+      complianceFlags: ['FDA food facility registration renewal pending'],
+      stockoutWindow: '6 days exposed',
+      penaltyRisk: '$156K chargeback + Costco OTIF penalty',
+      confidence: 68,
+    },
+    reasoning: [
+      'Inbound arriving 3 days after projected stockout at DC East',
+      'DC West has 2.9 months company-wide but concentrated at West Coast',
+      'Costco distribution requires 98% OTIF - high penalty exposure',
+      'Transfer prevents split-shipment and maintains fill rate',
+    ],
+  },
+  {
+    id: '5',
+    sku: 'POP-HC-5008',
+    itemName: 'Honeysuckle Cooling Herb Candy 12oz',
+    category: 'Herbal Candy',
+    brand: 'Prince of Peace',
+    atRiskDC: 'DC Central',
+    daysUntilStockout: 6,
+    companyWideInventory: '5.8 months (balanced)',
+    recommendation: 'Wait',
+    riskLevel: 'Low',
+    potentialPenalty: '$18K',
+    reason: 'Sufficient lead time, low risk',
+    confidence: 82,
+    updatedAt: '35 min ago',
+    transferDetails: {
+      sourceDC: 'DC East',
+      unitsAvailable: 4200,
+      leadTime: '4-5 days',
+      estimatedArrival: 'Apr 23, 2pm',
+      cost: '$1,900',
+      postTransferHealth: 'Marginal (1.6 months coverage)',
+      confidence: 65,
+    },
+    inboundDetails: {
+      poEta: 'Apr 23, 10am',
+      delayRisk: 'Low - ocean freight on schedule',
+      complianceFlags: [],
+      stockoutWindow: 'No stockout expected',
+      penaltyRisk: '<$3K buffer risk',
+      confidence: 82,
+    },
+    reasoning: [
+      'Inbound arriving 3 days before projected stockout',
+      'Ocean container tracking shows on-time arrival',
+      'Transfer cost ($1.9K) higher than minimal penalty risk',
+      'DC Central velocity stable and predictable for this SKU',
+    ],
+  },
+  {
+    id: '6',
+    sku: 'POP-GI-6115',
+    itemName: 'Ginger Chews Original 4.4oz',
+    category: 'Herbal Candy',
+    brand: 'Prince of Peace',
+    atRiskDC: 'DC West',
+    daysUntilStockout: 3,
+    companyWideInventory: '0.8 months (critical)',
+    recommendation: 'Escalate',
+    riskLevel: 'High',
+    potentialPenalty: '$213K',
+    reason: 'No source DC available, critical shortage',
+    confidence: 96,
+    updatedAt: '8 min ago',
+    transferDetails: {
+      sourceDC: 'None available',
+      unitsAvailable: 0,
+      leadTime: 'N/A',
+      estimatedArrival: 'N/A',
+      cost: 'N/A',
+      postTransferHealth: 'N/A',
+      confidence: 0,
+    },
+    inboundDetails: {
+      poEta: 'May 5',
+      delayRisk: 'Critical - China factory shutdown',
+      complianceFlags: ['Supplier factory temporary closure', 'Company-wide shortage across all 3 DCs'],
+      stockoutWindow: '14+ days exposed',
+      penaltyRisk: '$213K chargeback + lost shelf space',
+      confidence: 91,
+    },
+    reasoning: [
+      'All 3 DCs critically low - only 0.8 months company-wide',
+      'China supplier temporary factory closure due to equipment failure',
+      'Top-selling SKU with major retail commitments (Whole Foods, Sprouts)',
+      'Requires executive escalation for air freight or alternative supplier',
+    ],
+  },
+];
