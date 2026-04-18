@@ -15,9 +15,9 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- **U1–U12 complete** — All 5 P16 success criteria green; chargebacks page updated with ranked tables; 59 pytest passing.
-- **U13 complete** — `qwen2.5:7b-instruct` confirmed pulled (4.7 GB, 10 min ago); backend restarted with 7b default; criterion 5 re-verified with 7b (no ⚠, cites 12 DoS + $115,406); `demo/scenario.md` updated with correct live numbers ($717,665 delta, $115,406 transfer save, 219 SKU-DC rows, MISSED_WINDOW $2.76M).
-- **System is demo-ready.** All stack components verified: Ollama 7b + FastAPI :8000 + Next.js :3000.
+- **U1–U13 complete** — All P16 criteria green; chatbot live with 7b; demo scenario corrected with live numbers.
+- **U14 complete** — Worktree branch merged to main (`0dcfa4d`); pushed to remote; final pre-demo checklist all green: 59 pytest, healthz ok, J-72402 in queue, MDO100A top customer, MISSED_WINDOW top cause, chatbot criterion 5 no ⚠.
+- **System is demo-ready.** Start command: `ollama serve &`, `uvicorn web.api.main:app --port 8000`, `pnpm --dir web/frontend dev`. No OLLAMA_MODEL override needed — defaults to 7b.
 
 To start the full stack:
 ```bash
@@ -32,33 +32,29 @@ pnpm --dir web/frontend dev                                    # frontend → ht
 
 ## NEXT TASK
 
-**U14 — Merge to main + final pre-demo checklist**
+**U15 — Demo rehearsal + any final polish**
 
-U13 is complete. The worktree branch `claude/vibrant-jepsen-28b6c8` is ahead of main. Merge and final prep:
+The system is fully merged and all checklist items green. Remaining before presentation:
 
-**Step 1 — Merge worktree branch to main:**
-```bash
-git checkout main
-git merge claude/vibrant-jepsen-28b6c8 --no-ff -m "[META] merge: U12+U13 — P16 criteria verified, 7b confirmed, demo scenario updated"
-git push origin main
-```
+**Step 1 — Live rehearsal run** (needs a human at the keyboard):
+- Open browser at `http://localhost:3000`
+- Follow `demo/scenario.md` step-by-step with a timer running
+- Target: complete in 6–8 min
+- Note any awkward transitions, missing callouts, or slow renders
 
-**Step 2 — Final pre-demo checklist:**
-- [ ] `ollama list` shows `qwen2.5:7b-instruct`
-- [ ] `pytest -q` — 59 passing
-- [ ] Stack starts clean: `ollama serve &`, `uvicorn web.api.main:app --port 8000`, `pnpm --dir web/frontend dev`
-- [ ] `/` dashboard loads with J-72402 in action queue
-- [ ] `/chargebacks` shows MDO100A top customer + MISSED_WINDOW top cause
-- [ ] `/ask` "Why is J-72402 critical?" → answer in <20s, no ⚠
+**Step 2 — Fix any issues surfaced during rehearsal.** Common candidates:
+- Stat bar numbers don't match scenario script → check `GET /api/inventory/summary` and `GET /api/summary`
+- Slow initial load → verify data pipeline ran (`python3 -m data.ingest && python3 -m analytics.pipeline`)
+- Chatbot timeout → increase `OLLAMA_TIMEOUT` env or switch to 3b for demo resilience
 
-**Step 3 — Run `demo/scenario.md` end-to-end once** with a timer. Target: 6–8 min.
+**Step 3 — Commit any fixes**, push to main.
 
-Commit: `[DEMO] prep: U14 — pre-demo final checklist`
+Commit: `[DEMO] rehearsal: U15 — final polish from dry-run`
 
-## FILES IN PLAY (U14)
+## FILES IN PLAY (U15)
 
-- `demo/scenario.md` — updated walkthrough script (numbers verified against live API)
-- `web/api/config.py` — `OLLAMA_MODEL` default = `qwen2.5:7b-instruct`
+- `demo/scenario.md` — walkthrough script (numbers verified)
+- `web/api/config.py` — tweak `OLLAMA_TIMEOUT` if chatbot is slow
 
 ## LOCKED / DO NOT TOUCH
 
@@ -73,10 +69,10 @@ None. System is demo-ready.
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U13 are complete. Execute NEXT TASK (U14 — merge to main + final pre-demo checklist) per the spec in prompt.md.
+Note: U1–U14 are complete and merged to main. Execute NEXT TASK (U15 — demo rehearsal + final polish) per the spec in prompt.md.
 Requires: ollama serve running with qwen2.5:7b-instruct available.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U14 is done, update prompt.md and run scripts/handoff.sh.
+When U15 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
