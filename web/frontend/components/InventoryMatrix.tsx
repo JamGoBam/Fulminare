@@ -1,10 +1,10 @@
 "use client"
 
-import { useMemo, useState, useRef } from "react"
+import { useMemo } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
 import {
-  Search, ChevronLeft, ChevronRight,
+  ChevronLeft, ChevronRight,
   AlertTriangle, Clock, TrendingUp, Package, ArrowRight, CheckCircle,
 } from "lucide-react"
 import { getInventoryImbalance, getActionItems } from "@/lib/api"
@@ -19,6 +19,7 @@ interface SkuGroup {
   dcEast: ImbalanceRow | null
   imbalance_score: number
   worstStatus: "critical" | "warning" | "ok"
+  hasOverstock: boolean
 }
 
 function groupBySku(rows: ImbalanceRow[]): SkuGroup[] {
@@ -29,6 +30,7 @@ function groupBySku(rows: ImbalanceRow[]): SkuGroup[] {
         sku: row.sku, product_name: row.product_name,
         dcWest: null, dcCentral: null, dcEast: null,
         imbalance_score: 0, worstStatus: "ok",
+        hasOverstock: false,
       })
     }
     const g = map.get(row.sku)!
@@ -38,6 +40,7 @@ function groupBySku(rows: ImbalanceRow[]): SkuGroup[] {
     g.imbalance_score = Math.max(g.imbalance_score, row.imbalance_score)
     if (row.status === "critical") g.worstStatus = "critical"
     else if (row.status === "warning" && g.worstStatus !== "critical") g.worstStatus = "warning"
+    if (row.dos !== null && row.dos > 180) g.hasOverstock = true
   }
   return Array.from(map.values())
 }
@@ -106,14 +109,12 @@ export function InventoryMatrix() {
   const router = useRouter()
   const params = useSearchParams()
 
-  const statusParam  = params.get("status")
+  const statusParam    = params.get("status")
   const statusFilter: string[] = statusParam ? statusParam.split(",") : ["Critical", "Watch", "Balanced"]
-  const dcFilter = params.get("dc") ?? "all"
-  const search   = params.get("q") ?? ""
-  const page     = Math.max(1, Number(params.get("page") ?? 1))
-
-  const [localSearch, setLocalSearch] = useState(search)
-  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const dcFilter       = params.get("dc") ?? "all"
+  const imbalanceFilter = params.get("imbalance") ?? "all"
+  const search         = params.get("q") ?? ""
+  const page           = Math.max(1, Number(params.get("page") ?? 1))
 
   const { data: imbalance, isLoading, isError } = useQuery({
     queryKey: ["inventory-imbalance"],
@@ -151,12 +152,6 @@ export function InventoryMatrix() {
     pushParams({ status: current.size > 0 ? [...current].join(",") : null })
   }
 
-  function handleSearchChange(value: string) {
-    setLocalSearch(value)
-    clearTimeout(debounceRef.current)
-    debounceRef.current = setTimeout(() => pushParams({ q: value || null }), 200)
-  }
-
   function groupStatusLabel(g: SkuGroup): StatusFilter {
     if (g.worstStatus === "critical") return "Critical"
     if (g.worstStatus === "warning")  return "Watch"
@@ -173,10 +168,14 @@ export function InventoryMatrix() {
           const dcRow = dcFilter === "DC_WEST" ? g.dcWest : dcFilter === "DC_CENTRAL" ? g.dcCentral : g.dcEast
           if (!dcRow || dcRow.status === "ok") return false
         }
-        if (localSearch) {
-          const q = localSearch.toLowerCase()
+        if (search) {
+          const q = search.toLowerCase()
           if (!g.sku.toLowerCase().includes(q) && !g.product_name.toLowerCase().includes(q)) return false
         }
+        if (imbalanceFilter === "severe"     && g.imbalance_score < 1.5) return false
+        if (imbalanceFilter === "moderate"   && (g.imbalance_score < 0.5 || g.imbalance_score >= 1.5)) return false
+        if (imbalanceFilter === "balanced"   && g.imbalance_score >= 0.5) return false
+        if (imbalanceFilter === "overstock"  && !g.hasOverstock) return false
         return true
       })
       .sort((a, b) => {
@@ -184,32 +183,19 @@ export function InventoryMatrix() {
         return (ord[a.worstStatus] ?? 2) - (ord[b.worstStatus] ?? 2)
       })
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [skuGroups, statusStr, dcFilter, localSearch])
+  }, [skuGroups, statusStr, dcFilter, search, imbalanceFilter])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
   const safePage   = Math.min(page, totalPages)
   const pageRows   = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
 
-  const isDefault = statusFilter.slice().sort().join(",") === "Balanced,Critical,Watch" && dcFilter === "all" && !localSearch
+  const isDefault = statusStr === "Balanced,Critical,Watch" && dcFilter === "all" && !search && imbalanceFilter === "all"
 
   return (
     <div className="flex gap-6">
       {/* Filter rail */}
       <div className="w-52 shrink-0">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 sticky top-24 space-y-5">
-          <div>
-            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Search</p>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-2.5 w-3.5 h-3.5 text-slate-400 pointer-events-none" />
-              <input
-                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
-                placeholder="SKU or product…"
-                value={localSearch}
-                onChange={(e) => handleSearchChange(e.target.value)}
-              />
-            </div>
-          </div>
-
           <div>
             <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">Status</p>
             <div className="space-y-2">
@@ -249,9 +235,26 @@ export function InventoryMatrix() {
             </select>
           </div>
 
+          <div>
+            <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2">
+              Imbalance
+            </p>
+            <select
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-1 focus:ring-blue-500 bg-white"
+              value={imbalanceFilter}
+              onChange={(e) => pushParams({ imbalance: e.target.value === "all" ? null : e.target.value })}
+            >
+              <option value="all">All Imbalances</option>
+              <option value="severe">Severe Imbalance</option>
+              <option value="moderate">Moderate</option>
+              <option value="balanced">Balanced</option>
+              <option value="overstock">Overstocked</option>
+            </select>
+          </div>
+
           {!isDefault && (
             <button
-              onClick={() => { setLocalSearch(""); router.push("/inventory", { scroll: false }) }}
+              onClick={() => router.push("/inventory", { scroll: false })}
               className="text-xs text-blue-600 hover:text-blue-800 underline"
             >
               Clear filters
@@ -309,11 +312,20 @@ export function InventoryMatrix() {
                     const ImbIcon = imb.Icon
                     const actionItem = actionBySku.get(g.sku)
                     const inboundPO = actionItem?.inboundDetails?.poEta ?? null
+                    const isCritical = g.worstStatus === "critical"
 
                     return (
-                      <tr key={g.sku} className="hover:bg-slate-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span className="font-mono text-sm font-semibold text-slate-900">{g.sku}</span>
+                      <tr key={g.sku} className={isCritical ? "bg-red-50/60 hover:bg-red-50" : "hover:bg-slate-50"}>
+                        <td className={`px-6 py-4 whitespace-nowrap ${isCritical ? "border-l-4 border-l-red-500" : "border-l-4 border-l-transparent"}`}>
+                          <div className="flex items-center gap-2">
+                            <span className="font-mono text-sm font-semibold text-slate-900">{g.sku}</span>
+                            {isCritical && (
+                              <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-red-100 text-red-700 text-[10px] font-semibold rounded leading-none">
+                                <AlertTriangle className="w-2.5 h-2.5" />
+                                Urgent
+                              </span>
+                            )}
+                          </div>
                         </td>
                         <td className="px-6 py-4">
                           <div className="text-sm font-medium text-slate-900 max-w-[180px] truncate">

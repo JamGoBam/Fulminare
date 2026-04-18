@@ -1,12 +1,29 @@
 "use client"
 
-import { Suspense, useMemo } from "react"
+import { Suspense, useMemo, useState, useRef } from "react"
 import { useQuery } from "@tanstack/react-query"
-import { AlertTriangle, TrendingDown, Package, Clock } from "lucide-react"
+import { useRouter, useSearchParams } from "next/navigation"
+import { AlertTriangle, TrendingDown, Package, Clock, Search, X } from "lucide-react"
 import { InventoryMatrix } from "@/components/InventoryMatrix"
 import { getInventoryImbalance } from "@/lib/api"
 
 function InventoryContent() {
+  const router = useRouter()
+  const params = useSearchParams()
+  const [localSearch, setLocalSearch] = useState(params.get("q") ?? "")
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+
+  function handleSearchChange(value: string) {
+    setLocalSearch(value)
+    clearTimeout(debounceRef.current)
+    debounceRef.current = setTimeout(() => {
+      const next = new URLSearchParams(params.toString())
+      if (value) next.set("q", value)
+      else next.delete("q")
+      router.push(`/inventory?${next.toString()}`, { scroll: false })
+    }, 200)
+  }
+
   const { data: imbalance } = useQuery({
     queryKey: ["inventory-imbalance"],
     queryFn: () => getInventoryImbalance(1000),
@@ -43,6 +60,8 @@ function InventoryContent() {
       valueColor: "text-red-600",
       Icon: AlertTriangle,
       iconColor: "text-red-600",
+      hoverBorder: "hover:border-red-300",
+      filter: "status=Critical",
     },
     {
       label: "Severe Imbalances",
@@ -50,6 +69,8 @@ function InventoryContent() {
       valueColor: "text-amber-600",
       Icon: TrendingDown,
       iconColor: "text-amber-600",
+      hoverBorder: "hover:border-amber-300",
+      filter: "imbalance=severe",
     },
     {
       label: "Overstocked",
@@ -57,6 +78,8 @@ function InventoryContent() {
       valueColor: "text-blue-600",
       Icon: Package,
       iconColor: "text-blue-600",
+      hoverBorder: "hover:border-blue-300",
+      filter: "imbalance=overstock",
     },
     {
       label: "Watch SKUs",
@@ -64,6 +87,8 @@ function InventoryContent() {
       valueColor: "text-slate-900",
       Icon: Clock,
       iconColor: "text-slate-600",
+      hoverBorder: "hover:border-slate-300",
+      filter: "status=Watch",
     },
   ]
 
@@ -75,17 +100,46 @@ function InventoryContent() {
       </div>
 
       <div className="grid grid-cols-4 gap-4 mb-6">
-        {kpis.map(({ label, value, valueColor, Icon, iconColor }) => (
-          <div key={label} className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm">
+        {kpis.map(({ label, value, valueColor, Icon, iconColor, hoverBorder, filter }) => (
+          <button
+            key={label}
+            onClick={() => router.push(`/inventory?${filter}`)}
+            className={`bg-white rounded-xl p-5 border border-slate-200 shadow-sm ${hoverBorder} hover:shadow-md transition-all text-left group cursor-pointer`}
+          >
             <div className="flex items-center justify-between">
               <div>
                 <div className="text-slate-500 text-sm mb-1">{label}</div>
                 <div className={`text-3xl font-semibold ${valueColor}`}>{value}</div>
               </div>
-              <Icon className={`w-8 h-8 ${iconColor}`} />
+              <Icon className={`w-8 h-8 ${iconColor} group-hover:scale-110 transition-transform`} />
             </div>
-          </div>
+            <div className="mt-2 text-xs text-slate-400 group-hover:text-blue-500 transition-colors">
+              Filter by {label.toLowerCase()} →
+            </div>
+          </button>
         ))}
+      </div>
+
+      {/* Search bar — matches dashboard FilterBar style */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm mb-6 px-4 py-3">
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={localSearch}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search by SKU or product name…"
+            className="w-full pl-10 pr-10 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+          {localSearch && (
+            <button
+              onClick={() => handleSearchChange("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
       </div>
 
       <InventoryMatrix />
