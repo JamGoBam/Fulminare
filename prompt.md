@@ -19,44 +19,38 @@ Three linked workstreams for the real-user POP Inventory tool:
 - Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=`, × clear. `FilterBar.tsx`: pills wired to `?status=`, DC dropdown to `?dc=`. `ActionQueue.tsx`: client-side filtering + EmptyState.
 - Completed **F9** — aria-current nav, keyboard nav rows, icon+color chips, 25-term glossary, OnboardingTour banner.
 - Completed **P11** — Ollama/OpenAI-compat swap; config.py; offline error path; 59 tests pass.
-- Completed **P12** — `web/api/chat_validator.py`: `extract_numbers` regex (dollars, days, units, SKUs, %); `validate_response` returns True when no tool results or no numbers, False when any number missing from combined tool results. `chat.py`: tracks `all_tool_results` across turns; emits `{"type":"warning"}` SSE before `done` if validation fails. `Chatbot.tsx`: `unverified` flag on `ChatMessage`; `warning` event sets it; renders amber `⚠ unverified — figures may not reflect live data` footnote below assistant bubble. 59 pytest pass, zero frontend console errors.
+- Completed **P12** — grounding validator, warning SSE, unverified footnote in Chatbot.
+- Completed **P13** — `app/ask/page.tsx`: full-screen chat (header, scrollable messages, bottom input bar, max-w-2xl centered); suggestion chips on empty state; same SSE handling as Chatbot (token/tool_start/warning/error); `?q=` auto-send on mount via `useRef` guard (fires once only). `Sidebar.tsx`: "Ask" nav entry with `MessageSquare` icon between Reports and Settings. Verified: `/ask` loads with empty state, `/ask?q=hello` auto-sends user bubble + streams response, sidebar active-highlights correctly, FAB chatbot unchanged, zero console errors.
 
 ---
 
 ## NEXT TASK
 
-**P13 — `/ask` full-screen chatbot page** — Mirror the FAB Sheet chatbot at full width as a dedicated `/ask` route, deep-linkable via `?q=<initial prompt>`.
+**P16 — End-to-end verification** — Run the 5 success-criteria tasks from PLAN.md, fix any gaps found.
 
-### What to build
+### What to verify (from PLAN.md §5 success criteria)
 
-1. **`app/ask/page.tsx`** (new) — full-screen chat page:
-   - Same layout as the Sheet but fills the main content area
-   - Reads `?q=` from URL on mount; if present, auto-sends as the first message (once only, use `useRef` guard)
-   - Sidebar "Ask" nav item — add to `Sidebar.tsx` nav with `MessageSquare` icon, href `/ask`
-   - Same message rendering as `Chatbot.tsx` (user bubbles right, assistant left, tool pills, `⚠ unverified`)
-   - Shares `API_BASE` from `lib/api.ts` — **no new API endpoints**
+1. **"Is anything going to stock out this week?"** — Dashboard Action Queue loads with real data (backend running), ranks by DoS, shows URGENT badges.
+2. **"Should I transfer X or wait?"** — Clicking an Action Queue row opens RecommendationPanel with transfer-vs-wait comparison and dollar tradeoff.
+3. **"Which chargebacks are hurting me most?"** — Analytics page loads ChargebackHeatmap + top causes + top-risk SKUs table.
+4. **"Show me everything critical in DC_EAST"** — Inventory page: filter rail + DC dropdown, Critical status filter, rows update.
+5. **"Explain this recommendation to my boss"** — `/ask?q=Why+is+SKU+J-72402+flagged` deep-link auto-sends and streams an answer.
 
-2. **Update `Sidebar.tsx`** — add Ask nav entry:
-   ```tsx
-   { icon: MessageSquare, label: "Ask", href: "/ask" }
-   ```
-   Import `MessageSquare` from lucide-react (already used in Chatbot FAB).
-
-3. **Deep-link**: other pages can link to `/ask?q=Why+is+SKU+J-72402+flagged` to pre-populate.
+### What to fix if broken
+- If any page has a broken API fetch (404/500), check the endpoint exists in `web/api/main.py` and the route file.
+- If `pytest -q` fails, fix the broken test before moving on.
+- If a TypeScript error appears in the browser console, fix it.
 
 ### Acceptance criteria
-1. `/ask` loads, accepts input, streams responses (same as FAB chatbot).
-2. `/ask?q=hello` auto-sends "hello" on mount.
-3. Sidebar "Ask" link active-highlights correctly.
-4. FAB chatbot (`Chatbot.tsx`) is unchanged and still works.
-5. Zero TypeScript errors, zero console errors.
+1. All 5 scenario tasks work end-to-end with backend running.
+2. `pytest -q` passes (59+ tests).
+3. Zero browser console errors on Dashboard, Inventory, Analytics, Ask pages.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/frontend/app/ask/page.tsx` (new)
-- `web/frontend/components/Sidebar.tsx` (add Ask nav entry)
+- Any file with a broken integration gap found during P16 verification
 
 ## LOCKED / DO NOT TOUCH
 
@@ -74,9 +68,9 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (P13 — /ask full-screen chatbot page) per the spec in prompt.md.
+Execute NEXT TASK (P16 — end-to-end verification) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When P13 is done, update prompt.md NEXT TASK to P14/P16, then run scripts/handoff.sh.
+When P16 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
