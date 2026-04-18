@@ -15,64 +15,68 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- **U1 complete** — Removed TopBar search; wired FilterBar search to `?q=`; moved URGENT inline; wired 4 cosmetic dropdowns to URL params; ActionQueue consumes risk/rec/sort. Zero errors.
-- **U2 complete** — Bell popover live: `useState` dropdown in `TopBar.tsx`, reuses `["action-items"]` TanStack Query cache, lists top-3 URGENT rows (name · SKU · DC · days · penalty), clicking a row navigates to `/?selected=`, red dot hides when count=0.
-- **U3 complete** — #5: `recommended` prop on both comparison cards; Transfer card blue when Transfer Now is recommended, slate when not (and vice versa for Inbound card). #6: `ActionStatusProvider` + `useActionStatus` context with sessionStorage persistence; 4 action buttons update shared state; confirmation banner in panel; status chip + opacity + sink-to-bottom in ActionQueue. #7: "Explain in chat ↗" button under reasoning bullets calls `openChatbot()` with prefilled message. Zero console errors verified on fresh server start.
-- **U4 complete** — Draggable non-modal chatbot panel: replaced `<Sheet>` with fixed-position `div bottom-6 right-6`, pointer-event drag with viewport clamping, minimize/maximize via `ChevronDown`/`ChevronUp`, `X` close, FAB hidden when open. All SSE streaming logic intact.
-- **U5 complete** — Analytics page inline rec panel: `?selected=` URL state, `RecommendationPanel` embedded in 2-column layout alongside heatmap + top-risk SKUs; clicking a row in the top-risk table sets `?selected=`.
-- **U6 complete** — InventoryMatrix: 3 saved-view presets (My morning triage / East DC watchlist / Overstock candidates) in left filter rail, active state highlighted blue when filters match. Every table row is clickable — routes to `/?selected=<id>` when action item exists, else `/sku/<sku>`. Action-cell stopPropagation preserved.
-- **U7 complete** — Chargebacks page: filter bar (channel + DC selects, URL state, clear link); heatmap upgraded with `channel`/`dc` props for client-side filtering + plain-language cause labels (SHORT_SHIP → "Short shipment" etc.) + DC column headers localised; top-10 customers table added below heatmap (`getTopCustomers` fetcher in `lib/api.ts`). Zero console errors.
-- **U8 complete** — SKU detail page full redesign: 3-DC status cards, PO timeline, transfer rec card with "Review in Dashboard" link, chargeback summary. Verified live with J-72402.
-- **U9 complete** — End-to-end smoke test passed (Tasks 1–4; Task 5 requires Ollama). One gap fixed: InventoryMatrix count now shows "Loading…" during fetch instead of "0 SKU-DC rows".: 3-DC status cards (Critical/Watch/Healthy/Overstock chip, days of cover, available units, demand rate); PO timeline using `<PoTimeline>` (today + 3-day transfer ETA + open PO arrivals with delay flag); transfer recommendation card (route, qty, freight cost, net saving, reason, "Review in Dashboard" link); chargeback history summary card (total exposure + incident count). `getSkuDetail` + full TypeScript types added to `lib/api.ts`. Zero console errors.
-- **U10 complete** — Chatbot offline error message polished in both backend (`chat.py`) and frontend (`Chatbot.tsx`). Comprehensive duplicate-key sweep: all skeleton components across 6 files now use string-prefixed keys (`"a","b","c"` / `sk-${i}`); `app/ask/page.tsx` `nextId` counter changed to `Math.random().toString(36).slice(2)` matching `Chatbot.tsx`. Residual dev-mode key warnings (key=1, key=2) traced to a transient loading state invisible to the fiber tree after hydration — suspected Next.js DevTools internals; no functional or visual impact.
+- **U1–U12 complete** — All 5 P16 success criteria green; chargebacks page updated with ranked tables; 59 pytest passing.
+- **U13 complete** — `qwen2.5:7b-instruct` confirmed pulled (4.7 GB, 10 min ago); backend restarted with 7b default; criterion 5 re-verified with 7b (no ⚠, cites 12 DoS + $115,406); `demo/scenario.md` updated with correct live numbers ($717,665 delta, $115,406 transfer save, 219 SKU-DC rows, MISSED_WINDOW $2.76M).
+- **System is demo-ready.** All stack components verified: Ollama 7b + FastAPI :8000 + Next.js :3000.
 
-The project is shippable. To start the full stack:
+To start the full stack:
 ```bash
-uvicorn web.api.main:app --reload --port 8000   # backend
-pnpm --dir web/frontend dev                      # frontend → http://localhost:3000
-ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
+/Applications/Ollama.app/Contents/Resources/ollama serve &   # daemon on :11434
+OLLAMA_MODEL=qwen2.5:7b-instruct uvicorn web.api.main:app --reload --port 8000
+pnpm --dir web/frontend dev                                    # frontend → http://localhost:3000
 ```
+
+---
 
 ---
 
 ## NEXT TASK
 
-**U11 — Chatbot live verification (requires Ollama)**
+**U14 — Merge to main + final pre-demo checklist**
 
-U1–U10 are complete. The only remaining unverified item is Task 5 from PLAN.md success criteria: chatbot must answer "What should I do first today?" with grounded numbers in <15s, no API key required.
+U13 is complete. The worktree branch `claude/vibrant-jepsen-28b6c8` is ahead of main. Merge and final prep:
 
-Steps:
-1. Confirm `ollama serve` is running and `qwen2.5:7b-instruct` is pulled.
-2. Start backend on :8000 and frontend on :3000.
-3. Open chatbot FAB on dashboard; ask "What should I do first today?"
-4. Verify: answer arrives in <15s, cites a $ figure and day count matching `enriched.parquet` or action-items data, no `⚠ unverified` footnote on factual claims.
+**Step 1 — Merge worktree branch to main:**
+```bash
+git checkout main
+git merge claude/vibrant-jepsen-28b6c8 --no-ff -m "[META] merge: U12+U13 — P16 criteria verified, 7b confirmed, demo scenario updated"
+git push origin main
+```
 
-This task is a pure verification — no code changes expected unless the chatbot tools need tuning.
+**Step 2 — Final pre-demo checklist:**
+- [ ] `ollama list` shows `qwen2.5:7b-instruct`
+- [ ] `pytest -q` — 59 passing
+- [ ] Stack starts clean: `ollama serve &`, `uvicorn web.api.main:app --port 8000`, `pnpm --dir web/frontend dev`
+- [ ] `/` dashboard loads with J-72402 in action queue
+- [ ] `/chargebacks` shows MDO100A top customer + MISSED_WINDOW top cause
+- [ ] `/ask` "Why is J-72402 critical?" → answer in <20s, no ⚠
 
-**Known non-critical issue:** Dev console shows duplicate React key warnings (key=1, key=2) on initial page load. Exhaustive code sweep complete — all skeleton components use string keys; module-level `nextId` counters fixed in both `Chatbot.tsx` and `app/ask/page.tsx`. Root cause traced to transient state during initial hydration (not visible in fiber tree post-load). Suspected Next.js DevTools internals. No functional or visual impact; safe to ignore for demo.
+**Step 3 — Run `demo/scenario.md` end-to-end once** with a timer. Target: 6–8 min.
 
-## FILES IN PLAY (U11)
+Commit: `[DEMO] prep: U14 — pre-demo final checklist`
 
-- `web/api/chat_tools.py` — tool implementations (read-only DB queries)
-- `web/api/chat_prompts.py` — system prompt
-- `web/frontend/components/Chatbot.tsx` — UI (no changes expected)
+## FILES IN PLAY (U14)
+
+- `demo/scenario.md` — updated walkthrough script (numbers verified against live API)
+- `web/api/config.py` — `OLLAMA_MODEL` default = `qwen2.5:7b-instruct`
 
 ## LOCKED / DO NOT TOUCH
 
-- `PLAN.md` — approved spec
+- `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
 
 ## BLOCKERS
 
-- Requires Ollama running locally. If not available, verify offline error path only.
+None. System is demo-ready.
 
 ## QUICK-RESUME PROMPT
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U9 are complete. Execute NEXT TASK (U10 — chatbot smoke test) per the spec in prompt.md.
+Note: U1–U13 are complete. Execute NEXT TASK (U14 — merge to main + final pre-demo checklist) per the spec in prompt.md.
+Requires: ollama serve running with qwen2.5:7b-instruct available.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U10 is done, update prompt.md and run scripts/handoff.sh.
+When U14 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
