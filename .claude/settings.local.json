@@ -5,7 +5,9 @@
       "mcp__Claude_Preview__preview_start",
       "Bash(bash scripts/handoff.sh \"[META] handoff: add roadmap.md \\(chatbot + transfer-vs-wait\\); refresh CLAUDE/prompt for Phase 0\")",
       "Bash(bash scripts/handoff.sh \"[META] docs: Phase 5 handoff — sprint complete, chatbot e2e pending\")",
-      "Bash(bash scripts/handoff.sh \"[META] plan: add PLAN.md + pivot chatbot to local Ollama \\(no API key\\)\")"
+      "Bash(bash scripts/handoff.sh \"[META] plan: add PLAN.md + pivot chatbot to local Ollama \\(no API key\\)\")",
+      "Bash(git push *)",
+      "Bash(bash scripts/handoff.sh \"[META] figma: copy source TSX into repo + visual tokens in FIGMA_PROMPT.md\")"
     ]
   }
 }
