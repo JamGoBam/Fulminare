@@ -22,7 +22,8 @@ Three linked workstreams for the real-user POP Inventory tool:
 - **U5 complete** — Analytics page inline rec panel: `?selected=` URL state, `RecommendationPanel` embedded in 2-column layout alongside heatmap + top-risk SKUs; clicking a row in the top-risk table sets `?selected=`.
 - **U6 complete** — InventoryMatrix: 3 saved-view presets (My morning triage / East DC watchlist / Overstock candidates) in left filter rail, active state highlighted blue when filters match. Every table row is clickable — routes to `/?selected=<id>` when action item exists, else `/sku/<sku>`. Action-cell stopPropagation preserved.
 - **U7 complete** — Chargebacks page: filter bar (channel + DC selects, URL state, clear link); heatmap upgraded with `channel`/`dc` props for client-side filtering + plain-language cause labels (SHORT_SHIP → "Short shipment" etc.) + DC column headers localised; top-10 customers table added below heatmap (`getTopCustomers` fetcher in `lib/api.ts`). Zero console errors.
-- **U8 complete** — SKU detail page full redesign: 3-DC status cards (Critical/Watch/Healthy/Overstock chip, days of cover, available units, demand rate); PO timeline using `<PoTimeline>` (today + 3-day transfer ETA + open PO arrivals with delay flag); transfer recommendation card (route, qty, freight cost, net saving, reason, "Review in Dashboard" link); chargeback history summary card (total exposure + incident count). `getSkuDetail` + full TypeScript types added to `lib/api.ts`. Zero console errors.
+- **U8 complete** — SKU detail page full redesign: 3-DC status cards, PO timeline, transfer rec card with "Review in Dashboard" link, chargeback summary. Verified live with J-72402.
+- **U9 complete** — End-to-end smoke test passed (Tasks 1–4; Task 5 requires Ollama). One gap fixed: InventoryMatrix count now shows "Loading…" during fetch instead of "0 SKU-DC rows".: 3-DC status cards (Critical/Watch/Healthy/Overstock chip, days of cover, available units, demand rate); PO timeline using `<PoTimeline>` (today + 3-day transfer ETA + open PO arrivals with delay flag); transfer recommendation card (route, qty, freight cost, net saving, reason, "Review in Dashboard" link); chargeback history summary card (total exposure + incident count). `getSkuDetail` + full TypeScript types added to `lib/api.ts`. Zero console errors.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -35,25 +36,26 @@ ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
 
 ## NEXT TASK
 
-**U9 — End-to-end smoke test + any remaining gaps**
+**U10 — Chatbot smoke test + Ollama verification**
 
-U1–U8 are all complete. Run a manual walkthrough of all 5 success-criteria tasks from PLAN.md section 6 (with backend running) and note any gaps. If none are found, declare the polish sprint done and update prompt.md accordingly.
+U1–U9 are complete. The only unverified task is Task 5 from PLAN.md success criteria: chatbot must answer "What should I do first today?" with grounded numbers in <15s, no API key required.
 
-The 5 tasks:
-1. Land on `/` — read action queue row #1, understand $ risk and options in <30s.
-2. Search "SKU-001" in top bar — land on SKU detail, read recommendation.
-3. Navigate to `/inventory` — filter Status=Critical, DC=DC East — verify filtered list.
-4. Navigate to `/chargebacks` — filter, read top-customers list.
-5. Open chatbot FAB — ask "What should I do first today?" — verify response arrives.
+Steps:
+1. Confirm `ollama serve` is running and `qwen2.5:7b-instruct` is pulled.
+2. Start backend on :8000 and frontend on :3000.
+3. Open chatbot FAB on dashboard; ask "What should I do first today?"
+4. Verify: answer arrives in <15s, cites a $ figure and day count matching `enriched.parquet` or action-items data, no `⚠ unverified` footnote on factual claims.
+5. If the chatbot is offline (Ollama not running), verify the offline error message renders correctly in the panel.
 
-If gaps are found, fix them inline (small) or document as a new U10 task.
+If the offline error path needs polish, fix it in `web/frontend/components/Chatbot.tsx`.
 
-Commit: `[META] prompt: mark U8 complete, define U9 smoke-test task`
+Commit: `[META] prompt: mark U9 complete, define U10 chatbot verification`
 Then run `scripts/handoff.sh`.
 
-## FILES IN PLAY (U9)
+## FILES IN PLAY (U10)
 
-- No code changes expected — this is a verification pass.
+- `web/frontend/components/Chatbot.tsx` — offline error path polish if needed
+- `web/api/routes/chat.py` — verify Ollama offline error handling
 
 ## LOCKED / DO NOT TOUCH
 
@@ -62,15 +64,15 @@ Then run `scripts/handoff.sh`.
 
 ## BLOCKERS
 
-- None. Backend on :8000, frontend on :3000.
+- Requires Ollama running locally. If not available, verify offline error path only.
 
 ## QUICK-RESUME PROMPT
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U8 are complete. Execute NEXT TASK (U9 — smoke test + gap fix) per the spec in prompt.md.
+Note: U1–U9 are complete. Execute NEXT TASK (U10 — chatbot smoke test) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U9 is done, update prompt.md and run scripts/handoff.sh.
+When U10 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---
