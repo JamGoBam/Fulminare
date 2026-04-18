@@ -12,6 +12,7 @@ from pydantic import BaseModel
 from web.api.config import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
 from web.api.chat_prompts import SYSTEM_PROMPT
 from web.api.chat_tools import TOOL_SCHEMAS, execute_tool
+from web.api.chat_validator import validate_response
 
 router = APIRouter()
 
@@ -66,6 +67,7 @@ async def _stream_chat(
         *_inject_context(messages, page_context),
     ]
 
+    all_tool_results: list[str] = []
     turns = 0
     while turns < _MAX_TURNS:
         turns += 1
@@ -118,6 +120,8 @@ async def _stream_chat(
             return
 
         if finish_reason != "tool_calls" or not tool_calls_acc:
+            if not validate_response(text_buffer, all_tool_results):
+                yield _sse("warning", {"message": "Some figures could not be verified against live data."})
             yield _sse("done", {})
             return
 
@@ -148,10 +152,12 @@ async def _stream_chat(
             except Exception as exc:  # noqa: BLE001
                 result = {"error": str(exc)}
             yield _sse("tool_end", {"name": name})
+            result_str = json.dumps(result, default=str)
+            all_tool_results.append(result_str)
             working.append({
                 "role": "tool",
                 "tool_call_id": tc_item["id"],
-                "content": json.dumps(result, default=str),
+                "content": result_str,
             })
 
     yield _sse("error", {"message": "Session exceeded maximum turn limit"})
