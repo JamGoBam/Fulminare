@@ -10,7 +10,7 @@ import { API_BASE } from "@/lib/api"
 type Role = "user" | "assistant"
 
 interface ChatMessage {
-  id: number
+  id: string
   role: Role
   content: string
   toolCalls?: string[]
@@ -27,8 +27,7 @@ function getSuggestions(pathname: string): string[] {
   return SUGGESTIONS[pathname] ?? SUGGESTIONS["/"]
 }
 
-let _id = 0
-const nextId = () => ++_id
+const nextId = () => Math.random().toString(36).slice(2)
 
 function clamp(val: number, min: number, max: number) {
   return Math.min(max, Math.max(min, val))
@@ -143,7 +142,7 @@ export function Chatbot() {
                 const updated = [...prev]
                 const last = updated[updated.length - 1]
                 if (last?.role === "assistant")
-                  updated[updated.length - 1] = { ...last, content: `Error: ${event.message}` }
+                  updated[updated.length - 1] = { ...last, content: event.message as string }
                 return updated
               })
             }

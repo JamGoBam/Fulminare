@@ -1,68 +1,156 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import axios from "axios"
+import { useRouter, useSearchParams } from "next/navigation"
 import { ChargebackHeatmap } from "@/components/ChargebackHeatmap"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import Link from "next/link"
-import { API_BASE } from "@/lib/api"
+import { getTopCustomers } from "@/lib/api"
+import type { TopCustomer } from "@/lib/api"
 
-interface ChargebackRecord {
-  cause_code: string
-  channel: string
-  dc: string
-  total_amount: number
-  count: number
+const CHANNELS = ["Direct", "Wholesale", "Retail", "Online"]
+const DC_OPTIONS = [
+  { label: "All DCs",    value: "" },
+  { label: "DC East",    value: "DC_EAST" },
+  { label: "DC West",    value: "DC_WEST" },
+  { label: "DC Central", value: "DC_CENTRAL" },
+]
+
+function fmt(n: number) {
+  return `$${Math.round(n).toLocaleString("en-US")}`
+}
+
+function CustomerSkeleton() {
+  return (
+    <div className="divide-y divide-slate-100">
+      {Array.from({ length: 5 }).map((_, i) => (
+        <div key={`sk-${i}`} className="flex items-center gap-4 px-4 py-3">
+          <div className="h-4 w-6 rounded bg-slate-100 animate-pulse" />
+          <div className="h-4 flex-1 rounded bg-slate-100 animate-pulse" />
+          <div className="h-4 w-16 rounded bg-slate-100 animate-pulse" />
+          <div className="h-4 w-20 rounded bg-slate-100 animate-pulse" />
+        </div>
+      ))}
+    </div>
+  )
 }
 
 export default function ChargebacksPage() {
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  })
+  const router = useRouter()
+  const params = useSearchParams()
 
-  const { data: records } = useQuery<ChargebackRecord[]>({
-    queryKey: ["chargebacks-summary"],
-    queryFn: () =>
-      axios.get<ChargebackRecord[]>(`${API_BASE}/api/chargebacks/summary`).then((r) => r.data),
+  const selectedChannel = params.get("channel") ?? ""
+  const selectedDc      = params.get("dc")      ?? ""
+
+  function pushFilter(key: string, value: string) {
+    const next = new URLSearchParams(params.toString())
+    if (value) next.set(key, value)
+    else next.delete(key)
+    router.push(`/chargebacks?${next.toString()}`, { scroll: false })
+  }
+
+  const { data: customers, isLoading: custLoading } = useQuery<TopCustomer[]>({
+    queryKey: ["top-customers"],
+    queryFn: () => getTopCustomers(10),
     refetchInterval: 60_000,
   })
 
-  const fmt = (n: number) => `$${Math.round(n).toLocaleString("en-US")}`
-
-  const totalAmount = records ? records.reduce((s, r) => s + r.total_amount, 0) : 0
-  const totalCount = records ? records.reduce((s, r) => s + r.count, 0) : 0
+  const selectCls = "text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500"
 
   return (
-    <div className="flex flex-col flex-1 px-4 py-8 max-w-7xl mx-auto w-full gap-6">
-      <header className="flex flex-col gap-1">
-        <div className="flex items-center gap-3">
-          <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
-            ← Dashboard
-          </Link>
-        </div>
-        <h1 className="text-2xl font-semibold tracking-tight">Chargeback Analysis</h1>
-        <p className="text-sm text-muted-foreground">{today}</p>
+    <div className="flex flex-col flex-1 px-8 py-8 max-w-7xl mx-auto w-full gap-6">
+      <header>
+        <h1 className="text-2xl font-semibold text-slate-900">Chargeback Analysis</h1>
+        <p className="text-sm text-slate-500 mt-0.5">
+          Penalty exposure by cause, channel, and distribution center.
+        </p>
       </header>
 
+      {/* Filter bar */}
+      <div className="flex items-center gap-3 flex-wrap">
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Filter:</span>
+
+        <select
+          className={selectCls}
+          value={selectedChannel}
+          onChange={(e) => pushFilter("channel", e.target.value)}
+        >
+          <option value="">All channels</option>
+          {CHANNELS.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+
+        <select
+          className={selectCls}
+          value={selectedDc}
+          onChange={(e) => pushFilter("dc", e.target.value)}
+        >
+          {DC_OPTIONS.map((o) => (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          ))}
+        </select>
+
+        {(selectedChannel || selectedDc) && (
+          <button
+            onClick={() => router.push("/chargebacks", { scroll: false })}
+            className="text-xs text-blue-600 hover:text-blue-800 underline"
+          >
+            Clear filters
+          </button>
+        )}
+      </div>
+
+      {/* Heatmap */}
       <Card>
         <CardHeader className="border-b">
           <CardTitle>Chargebacks by Cause × DC</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          <ChargebackHeatmap />
+          <ChargebackHeatmap
+            channel={selectedChannel || undefined}
+            dc={selectedDc || undefined}
+          />
         </CardContent>
       </Card>
 
-      {records && records.length > 0 && (
-        <p className="text-sm text-muted-foreground">
-          Total chargeback exposure (excl. TPR):{" "}
-          <strong className="text-foreground">{fmt(totalAmount)}</strong> across{" "}
-          <strong className="text-foreground">{totalCount} incidents</strong>
-        </p>
-      )}
+      {/* Top customers */}
+      <Card>
+        <CardHeader className="border-b">
+          <CardTitle>Top customers by exposure</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          {custLoading && <CustomerSkeleton />}
+          {!custLoading && (!customers || customers.length === 0) && (
+            <p className="px-4 py-8 text-sm text-center text-slate-500">
+              No chargeback data available.
+            </p>
+          )}
+          {!custLoading && customers && customers.length > 0 && (
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 w-12">Rank</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600">Customer</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-600 w-28">Incidents</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-600 w-36">Total Exposure</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {customers.map((c, i) => (
+                  <tr key={c.customer_id} className="hover:bg-slate-50 transition-colors">
+                    <td className="px-4 py-3 text-xs font-semibold text-slate-400">#{i + 1}</td>
+                    <td className="px-4 py-3 font-medium text-slate-800">{c.customer_id}</td>
+                    <td className="px-4 py-3 text-right tabular-nums text-slate-600">{c.count}</td>
+                    <td className="px-4 py-3 text-right tabular-nums font-semibold text-red-600">
+                      {fmt(c.total_amount)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </CardContent>
+      </Card>
     </div>
   )
 }

@@ -53,8 +53,8 @@ const STATUS_CHIP: Record<ActionStatus, { label: string; cls: string }> = {
 function Skeleton() {
   return (
     <div className="space-y-2 p-4">
-      {[1, 2, 3].map((i) => (
-        <div key={i} className="h-16 rounded-lg bg-slate-100 animate-pulse" />
+      {["a", "b", "c"].map((k) => (
+        <div key={k} className="h-16 rounded-lg bg-slate-100 animate-pulse" />
       ))}
     </div>
   )

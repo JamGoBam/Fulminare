@@ -80,7 +80,7 @@ async def _stream_chat(
                 stream=True,
             )
         except APIConnectionError:
-            yield _sse("error", {"message": "Ollama offline — run `ollama serve`"})
+            yield _sse("error", {"message": "The assistant is offline right now. Ask your system admin to start the local model."})
             return
         except Exception as exc:  # noqa: BLE001
             yield _sse("error", {"message": str(exc)})

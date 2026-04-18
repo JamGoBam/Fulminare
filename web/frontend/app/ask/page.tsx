@@ -8,15 +8,14 @@ import { API_BASE } from "@/lib/api"
 type Role = "user" | "assistant"
 
 interface ChatMessage {
-  id: number
+  id: string
   role: Role
   content: string
   toolCalls?: string[]
   unverified?: boolean
 }
 
-let _id = 0
-const nextId = () => ++_id
+const nextId = () => Math.random().toString(36).slice(2)
 
 function AskContent() {
   const params = useSearchParams()

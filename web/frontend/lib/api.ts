@@ -73,3 +73,54 @@ export interface TopCause {
 export function getTopCauses(n = 5): Promise<TopCause[]> {
   return apiGet<TopCause[]>(`/api/chargebacks/top-causes?n=${n}`)
 }
+
+export interface TopCustomer {
+  customer_id: string
+  total_amount: number
+  count: number
+}
+
+export function getTopCustomers(n = 10): Promise<TopCustomer[]> {
+  return apiGet<TopCustomer[]>(`/api/chargebacks/top-customers?n=${n}`)
+}
+
+export interface SkuDcDetail {
+  dc: string
+  available: number
+  demand_rate: number
+  dos: number | null
+  status: string
+}
+
+export interface SkuOpenPO {
+  po_id: string
+  qty: number
+  expected_arrival: string
+  delay_flag: boolean
+}
+
+export interface SkuRecommendation {
+  action: string
+  dest_dc: string
+  origin_dc: string | null
+  qty: number | null
+  transfer_cost: number | null
+  inbound_po_id: string | null
+  inbound_eta: string | null
+  days_to_stockout: number | null
+  net_saving: number | null
+  reason: string
+}
+
+export interface SkuDetail {
+  sku: string
+  product_name: string
+  dcs: SkuDcDetail[]
+  open_pos: SkuOpenPO[]
+  recommendation: SkuRecommendation | null
+  chargeback_history_summary: { total_amount: number; count: number }
+}
+
+export function getSkuDetail(sku: string): Promise<SkuDetail> {
+  return apiGet<SkuDetail>(`/api/inventory/sku/${sku}`)
+}
