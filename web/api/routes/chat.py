@@ -1,23 +1,22 @@
-"""POST /api/chat — SSE streaming chatbot backed by Claude claude-sonnet-4-6 with tool use."""
+"""POST /api/chat — SSE streaming chatbot backed by local Ollama (OpenAI-compatible API)."""
 from __future__ import annotations
 
 import json
-import os
 from typing import AsyncGenerator, Optional
 
-import anthropic
+from openai import AsyncOpenAI, APIConnectionError
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
+from web.api.config import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
 from web.api.chat_prompts import SYSTEM_PROMPT
 from web.api.chat_tools import TOOL_SCHEMAS, execute_tool
 
 router = APIRouter()
 
-_MODEL = "claude-sonnet-4-6"
 _MAX_TOKENS = 2048
-_MAX_TURNS = 20  # cap total user+assistant turns per session
+_MAX_TURNS = 20
 
 
 class PageContext(BaseModel):
@@ -48,81 +47,112 @@ def _inject_context(messages: list[dict], ctx: Optional[PageContext]) -> list[di
         parts.append(f"sku={ctx.sku}")
     prefix = f"[Page context: {', '.join(parts)}]\n\n"
     out = list(messages)
-    first = out[0]
-    if first["role"] == "user":
-        out[0] = {"role": "user", "content": prefix + str(first["content"])}
+    if out[0]["role"] == "user":
+        out[0] = {"role": "user", "content": prefix + str(out[0]["content"])}
     return out
-
-
-def _serialize_content(content: list) -> list[dict]:
-    """Convert Anthropic content blocks to plain dicts for re-submission."""
-    result = []
-    for block in content:
-        if block.type == "text":
-            result.append({"type": "text", "text": block.text})
-        elif block.type == "tool_use":
-            result.append({"type": "tool_use", "id": block.id,
-                           "name": block.name, "input": block.input})
-    return result
 
 
 async def _stream_chat(
     messages: list[dict],
     page_context: Optional[PageContext],
 ) -> AsyncGenerator[str, None]:
-    api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if not api_key:
-        yield _sse("error", {"message": "ANTHROPIC_API_KEY not configured"})
-        return
-
-    client = anthropic.AsyncAnthropic(api_key=api_key)
-    working = _inject_context(messages, page_context)
+    client = AsyncOpenAI(
+        base_url=OLLAMA_URL,
+        api_key="ollama",
+        timeout=float(OLLAMA_TIMEOUT),
+    )
+    working: list[dict] = [
+        {"role": "system", "content": SYSTEM_PROMPT},
+        *_inject_context(messages, page_context),
+    ]
 
     turns = 0
     while turns < _MAX_TURNS:
         turns += 1
         try:
-            async with client.messages.stream(
-                model=_MODEL,
-                system=SYSTEM_PROMPT,  # type: ignore[arg-type]
+            stream = await client.chat.completions.create(
+                model=OLLAMA_MODEL,
                 messages=working,
-                tools=TOOL_SCHEMAS,  # type: ignore[arg-type]
+                tools=TOOL_SCHEMAS,
                 max_tokens=_MAX_TOKENS,
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield _sse("token", {"content": text})
-                message = await stream.get_final_message()
-
-        except anthropic.APIStatusError as exc:
-            yield _sse("error", {"message": f"API error {exc.status_code}: {exc.message}"})
+                stream=True,
+            )
+        except APIConnectionError:
+            yield _sse("error", {"message": "Ollama offline — run `ollama serve`"})
             return
         except Exception as exc:  # noqa: BLE001
             yield _sse("error", {"message": str(exc)})
             return
 
-        if message.stop_reason != "tool_use":
+        # Accumulate streaming response
+        text_buffer = ""
+        tool_calls_acc: dict[int, dict] = {}
+        finish_reason: str | None = None
+
+        try:
+            async for chunk in stream:
+                choice = chunk.choices[0] if chunk.choices else None
+                if not choice:
+                    continue
+                if choice.finish_reason:
+                    finish_reason = choice.finish_reason
+                delta = choice.delta
+
+                if delta.content:
+                    text_buffer += delta.content
+                    yield _sse("token", {"content": delta.content})
+
+                if delta.tool_calls:
+                    for tc in delta.tool_calls:
+                        idx = tc.index
+                        if idx not in tool_calls_acc:
+                            tool_calls_acc[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc.id:
+                            tool_calls_acc[idx]["id"] = tc.id
+                        if tc.function and tc.function.name:
+                            tool_calls_acc[idx]["name"] = tc.function.name
+                        if tc.function and tc.function.arguments:
+                            tool_calls_acc[idx]["arguments"] += tc.function.arguments
+        except Exception as exc:  # noqa: BLE001
+            yield _sse("error", {"message": str(exc)})
+            return
+
+        if finish_reason != "tool_calls" or not tool_calls_acc:
             yield _sse("done", {})
             return
 
-        # Execute tool calls and continue the loop
-        tool_uses = [b for b in message.content if b.type == "tool_use"]
-        working.append({"role": "assistant", "content": _serialize_content(message.content)})
+        # Build OpenAI-format assistant message with tool_calls
+        tool_calls_list = [
+            {
+                "id": tool_calls_acc[i]["id"],
+                "type": "function",
+                "function": {
+                    "name": tool_calls_acc[i]["name"],
+                    "arguments": tool_calls_acc[i]["arguments"],
+                },
+            }
+            for i in sorted(tool_calls_acc)
+        ]
+        assistant_msg: dict = {"role": "assistant", "tool_calls": tool_calls_list}
+        if text_buffer:
+            assistant_msg["content"] = text_buffer
+        working.append(assistant_msg)
 
-        tool_results = []
-        for tu in tool_uses:
-            yield _sse("tool_start", {"name": tu.name})
+        # Execute each tool and append results as individual tool messages
+        for tc_item in tool_calls_list:
+            name = tc_item["function"]["name"]
+            yield _sse("tool_start", {"name": name})
             try:
-                result = execute_tool(tu.name, tu.input)
+                args = json.loads(tc_item["function"]["arguments"] or "{}")
+                result = execute_tool(name, args)
             except Exception as exc:  # noqa: BLE001
                 result = {"error": str(exc)}
-            yield _sse("tool_end", {"name": tu.name})
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": tu.id,
+            yield _sse("tool_end", {"name": name})
+            working.append({
+                "role": "tool",
+                "tool_call_id": tc_item["id"],
                 "content": json.dumps(result, default=str),
             })
-
-        working.append({"role": "user", "content": tool_results})
 
     yield _sse("error", {"message": "Session exceeded maximum turn limit"})
 

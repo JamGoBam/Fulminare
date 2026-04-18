@@ -17,67 +17,56 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 - Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards + Available Reports table (5 rows). `app/settings/page.tsx`: Preferences toggles, DC Labels read-only, Integrations with status badges. Zero errors.
 - Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=`, × clear. `FilterBar.tsx`: pills wired to `?status=`, DC dropdown to `?dc=`. `ActionQueue.tsx`: client-side filtering + EmptyState.
-- Completed **F9** — `Sidebar.tsx`: `aria-current="page"` on active nav link. `ActionQueue.tsx`: rows are `role="button" tabIndex=0` with `onKeyDown` Enter/Space + `focus-visible:ring-2`. `InventoryMatrix.tsx`: STATUS_META extended with icon components (AlertTriangle/Clock/CheckCircle/TrendingUp); both table chips and filter-rail chips render icon+label inline. `MetricTooltip.tsx`: glossary expanded from 9 → 25 terms covering all app metrics. `OnboardingTour.tsx` (new): fixed bottom-center banner, dismisses to sessionStorage `"pop-onboarding-dismissed"`, `aria-label` on X. Mounted in `app/layout.tsx`. Verified: banner appears fresh, X dismisses and sets sessionStorage, no console errors.
-- Backend still has pre-existing P11 blocker (`chat.py` imports `anthropic`); all frontend F-phases (F1–F9) now complete.
+- Completed **F9** — aria-current nav, keyboard nav rows, icon+color chips, 25-term glossary, OnboardingTour banner.
+- Completed **P11** — `web/api/config.py` (new): `OLLAMA_URL/MODEL/TIMEOUT` from env. `web/api/routes/chat.py`: full rewrite — `AsyncOpenAI(base_url=OLLAMA_URL, api_key="ollama")`; streaming accumulates tool_calls across chunks; OpenAI tool message format (`role: "tool"`, `tool_call_id`); `APIConnectionError` → SSE `{"type":"error","message":"Ollama offline — run ollama serve"}`. `chat_prompts.py`: removed `cache_control` dict, `SYSTEM_PROMPT` now a plain string, added grounding rule. `chat_tools.py`: TOOL_SCHEMAS converted to OpenAI format (`{"type":"function","function":{...,"parameters":{...}}}`). `pyproject.toml`: `anthropic>=0.40` → `openai>=1.40`. Verified: 0 `anthropic` references in codebase, `/healthz` 200, offline error path returns correct SSE, 59 pytest tests pass.
 
 ---
 
 ## NEXT TASK
 
-**P11 — Chatbot local-inference swap** — Replace the `anthropic` SDK in `chat.py` with the OpenAI-compatible client pointed at the local Ollama server. Zero external API key required after this change.
+**P12 — Chatbot grounding validator** — Add `web/api/chat_validator.py` that checks model responses for hallucinated numbers, and wire a `⚠ unverified` footnote in `Chatbot.tsx` when validation fails.
 
-### What to change
+### What to build
 
-1. **`web/api/config.py`** (new file) — centralize model config:
+1. **`web/api/chat_validator.py`** (new) — post-stream numeric check:
    ```python
-   import os
-   OLLAMA_URL     = os.getenv("OLLAMA_URL",     "http://localhost:11434/v1")
-   OLLAMA_MODEL   = os.getenv("OLLAMA_MODEL",   "qwen2.5:7b-instruct")
-   OLLAMA_TIMEOUT = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+   import re
+   def extract_numbers(text: str) -> set[str]:
+       return set(re.findall(r"\$[\d,]+(?:\.\d+)?|[\d,]+(?:\.\d+)?\s*(?:days?|units?|SKUs?|%)", text))
+   
+   def validate_response(response_text: str, tool_results: list[str]) -> bool:
+       """Return True if all numbers in response appear in at least one tool result."""
+       nums = extract_numbers(response_text)
+       if not nums:
+           return True
+       combined = " ".join(tool_results)
+       return all(n in combined for n in nums)
    ```
 
-2. **`web/api/routes/chat.py`** — replace `import anthropic` / `anthropic.Anthropic()` with:
-   ```python
-   from openai import OpenAI
-   from web.api.config import OLLAMA_URL, OLLAMA_MODEL, OLLAMA_TIMEOUT
-   client = OpenAI(base_url=OLLAMA_URL, api_key="ollama", timeout=OLLAMA_TIMEOUT)
-   ```
-   - Change stream call to `client.chat.completions.create(model=OLLAMA_MODEL, messages=..., stream=True, tools=...)`
-   - Drop `cache_control: {"type": "ephemeral"}` dicts from messages (unsupported locally)
-   - Add Ollama-offline error path: if `httpx.ConnectError` / `openai.APIConnectionError`, stream a single SSE event `data: {"error": "Ollama offline — run \`ollama serve\`"}\n\n`
+2. **`web/api/routes/chat.py`** — track tool result strings during execution; after `done` event, run `validate_response`; if False, append an extra SSE event: `{"type": "warning", "message": "Some figures could not be verified against live data."}`.
 
-3. **`web/api/chat_prompts.py`** — remove any `cache_control` dicts; add sentence to system prompt: "Only state inventory numbers that appear in a tool result from this conversation turn."
-
-4. **`pyproject.toml`** — remove `anthropic>=0.40` from dependencies, confirm `openai>=1.40` is present.
-
-5. **`web/api/chat_tools.py`** — no logic change needed unless tool reads still reference old parquet paths.
-
-### Backend
-Requires `pip install openai` (already in pyproject if present; verify). Does NOT require Ollama to be running to start the FastAPI server — the error path handles offline gracefully.
+3. **`web/frontend/components/Chatbot.tsx`** — render the `warning` SSE event type as a `⚠ unverified` amber footnote below the assistant message.
 
 ### Acceptance criteria
-1. `uvicorn web.api.main:app --reload --port 8000` starts without `ImportError`.
-2. `GET /healthz` returns 200.
-3. `POST /api/chat` with Ollama offline returns SSE error event (not a 500).
-4. `POST /api/chat` with Ollama online streams tokens correctly.
-5. No `ANTHROPIC_API_KEY` reference anywhere in the codebase.
-6. `pytest -q` passes.
+1. `chat_validator.py` has `validate_response` returning correct bool.
+2. `pytest -q` passes.
+3. Frontend renders `⚠ unverified` footnote when warning event arrives.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/api/config.py` (new)
-- `web/api/routes/chat.py` (swap anthropic → openai-compat)
-- `web/api/chat_prompts.py` (remove cache_control, add grounding rule)
-- `pyproject.toml` (swap anthropic dep → openai)
+- `web/api/chat_validator.py` (new)
+- `web/api/routes/chat.py` (add validator call + warning SSE)
+- `web/frontend/components/Chatbot.tsx` (render warning footnote)
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- All frontend components (F1–F9 deliverables) — do not touch
-- `web/api/routes/action_items.py`, `web/api/routes/inventory.py`, etc. — non-chat backend untouched
+- `web/api/config.py`, `web/api/chat_prompts.py`, `web/api/chat_tools.py` — P11 deliverables
+- All frontend components except `Chatbot.tsx` — F1–F9 deliverables
+- `web/api/routes/action_items.py`, `web/api/routes/inventory.py`, etc.
 
 ## BLOCKERS
 
@@ -87,9 +76,9 @@ Requires `pip install openai` (already in pyproject if present; verify). Does NO
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (P11 — chatbot local-inference swap) per the spec in prompt.md.
+Execute NEXT TASK (P12 — chatbot grounding validator) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When P11 is done, update prompt.md NEXT TASK to P12, then run scripts/handoff.sh.
+When P12 is done, update prompt.md NEXT TASK to P13, then run scripts/handoff.sh.
 ```
 
 ---
