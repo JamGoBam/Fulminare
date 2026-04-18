@@ -35,3 +35,41 @@ export function getAlerts(limit = 10): Promise<AlertData[]> {
 export function getActionItems(): Promise<import("./types").ActionItem[]> {
   return apiGet("/api/action-items")
 }
+
+export interface InventorySummaryData {
+  total: number
+  critical: number
+  watch: number
+  healthy: number
+  overstock: number
+}
+
+export interface ImbalanceRow {
+  sku: string
+  product_name: string
+  dc: string
+  on_hand: number
+  available: number
+  demand_rate: number
+  dos: number | null
+  imbalance_score: number
+  status: "critical" | "warning" | "ok"
+}
+
+export function getInventorySummary(): Promise<InventorySummaryData> {
+  return apiGet<InventorySummaryData>("/api/inventory/summary")
+}
+
+export function getInventoryImbalance(top = 1000): Promise<ImbalanceRow[]> {
+  return apiGet<ImbalanceRow[]>(`/api/inventory/imbalance?top=${top}`)
+}
+
+export interface TopCause {
+  cause_code: string
+  total_amount: number
+  count: number
+}
+
+export function getTopCauses(n = 5): Promise<TopCause[]> {
+  return apiGet<TopCause[]>(`/api/chargebacks/top-causes?n=${n}`)
+}
