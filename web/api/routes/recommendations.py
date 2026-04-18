@@ -1,6 +1,7 @@
 """Recommendation endpoints: transfers and ranked alerts."""
 from __future__ import annotations
 
+import math
 from pathlib import Path
 from typing import Optional
 
@@ -21,8 +22,13 @@ def _parquet(name: str) -> pd.DataFrame:
 
 
 def _nullify(df: pd.DataFrame) -> list[dict]:
-    """Convert DataFrame to records, replacing NaN/NaT with None for JSON safety."""
-    return df.where(pd.notna(df), other=None).to_dict(orient="records")
+    """Convert DataFrame to records, replacing NaN/NaT/inf with None for JSON safety."""
+    records = df.to_dict(orient="records")
+    return [
+        {k: (None if (isinstance(v, float) and (math.isnan(v) or math.isinf(v))) else v)
+         for k, v in row.items()}
+        for row in records
+    ]
 
 
 class TransferOut(BaseModel):
