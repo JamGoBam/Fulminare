@@ -204,7 +204,9 @@ export function RecommendationPanel() {
               className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                 currentStatus === "approved"
                   ? "bg-green-600 text-white"
-                  : "bg-blue-600 hover:bg-blue-700 text-white"
+                  : transferRecommended
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
               }`}
             >
               {currentStatus === "approved" ? "✓ Approved" : "Approve Transfer"}
@@ -214,6 +216,8 @@ export function RecommendationPanel() {
               className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
                 currentStatus === "waiting"
                   ? "bg-slate-700 text-white"
+                  : waitRecommended
+                  ? "bg-blue-600 hover:bg-blue-700 text-white"
                   : "bg-slate-100 hover:bg-slate-200 text-slate-700"
               }`}
             >
