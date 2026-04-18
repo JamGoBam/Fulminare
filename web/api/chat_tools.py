@@ -190,41 +190,43 @@ def get_open_pos(sku: str | None = None, dc: str | None = None) -> list[dict]:
                          "ship_method", "delay_flag"]])
 
 
-# ── Tool schemas for Anthropic API ────────────────────────────────────────────
+# ── Tool schemas for OpenAI-compatible API (Ollama) ───────────────────────────
+
+def _tool(name: str, description: str, parameters: dict) -> dict:
+    return {"type": "function", "function": {"name": name, "description": description, "parameters": parameters}}
+
 
 TOOL_SCHEMAS: list[dict] = [
-    {
-        "name": "get_dashboard_summary",
-        "description": "Get overall dashboard numbers: manual annual chargeback penalty, "
-                       "system-avoidable savings, SKU alert counts.",
-        "input_schema": {"type": "object", "properties": {}, "required": []},
-    },
-    {
-        "name": "get_sku_status",
-        "description": "Get full status for a specific SKU: per-DC days of supply, "
-                       "open POs, transfer/wait recommendation, chargeback history.",
-        "input_schema": {
+    _tool(
+        "get_dashboard_summary",
+        "Get overall dashboard numbers: manual annual chargeback penalty, system-avoidable savings, SKU alert counts.",
+        {"type": "object", "properties": {}, "required": []},
+    ),
+    _tool(
+        "get_sku_status",
+        "Get full status for a specific SKU: per-DC days of supply, open POs, transfer/wait recommendation, chargeback history.",
+        {
             "type": "object",
             "properties": {"sku": {"type": "string", "description": "SKU code, e.g. J-72402"}},
             "required": ["sku"],
         },
-    },
-    {
-        "name": "list_critical_skus",
-        "description": "List SKUs at critical or warning days-of-supply, sorted most urgent first.",
-        "input_schema": {
+    ),
+    _tool(
+        "list_critical_skus",
+        "List SKUs at critical or warning days-of-supply, sorted most urgent first.",
+        {
             "type": "object",
             "properties": {
                 "dc": {"type": "string", "description": "Optional DC filter (DC_EAST, DC_WEST, DC_CENTRAL)"},
-                "limit": {"type": "integer", "description": "Max results (default 10)", "default": 10},
+                "limit": {"type": "integer", "description": "Max results (default 10)"},
             },
             "required": [],
         },
-    },
-    {
-        "name": "get_transfer_recommendation",
-        "description": "Get the TRANSFER or WAIT recommendation for a SKU with dollar tradeoff.",
-        "input_schema": {
+    ),
+    _tool(
+        "get_transfer_recommendation",
+        "Get the TRANSFER or WAIT recommendation for a SKU with dollar tradeoff.",
+        {
             "type": "object",
             "properties": {
                 "sku": {"type": "string", "description": "SKU code"},
@@ -232,11 +234,11 @@ TOOL_SCHEMAS: list[dict] = [
             },
             "required": ["sku"],
         },
-    },
-    {
-        "name": "get_chargeback_breakdown",
-        "description": "Get chargeback data broken down by cause, customer, channel, DC, or monthly trend.",
-        "input_schema": {
+    ),
+    _tool(
+        "get_chargeback_breakdown",
+        "Get chargeback data broken down by cause, customer, channel, DC, or monthly trend.",
+        {
             "type": "object",
             "properties": {
                 "by": {
@@ -244,29 +246,29 @@ TOOL_SCHEMAS: list[dict] = [
                     "enum": ["cause", "customer", "channel", "dc", "trend"],
                     "description": "Dimension to break down by",
                 },
-                "limit": {"type": "integer", "description": "Max rows (default 10)", "default": 10},
+                "limit": {"type": "integer", "description": "Max rows (default 10)"},
             },
             "required": ["by"],
         },
-    },
-    {
-        "name": "explain_metric",
-        "description": "Get a plain-English definition and formula for a POP metric.",
-        "input_schema": {
+    ),
+    _tool(
+        "explain_metric",
+        "Get a plain-English definition and formula for a POP metric.",
+        {
             "type": "object",
             "properties": {
                 "metric": {
                     "type": "string",
                     "enum": ["dos", "imbalance", "transfer_cost", "chargeback_risk", "otif"],
-                }
+                },
             },
             "required": ["metric"],
         },
-    },
-    {
-        "name": "get_open_pos",
-        "description": "Get open purchase orders, optionally filtered by SKU and/or DC.",
-        "input_schema": {
+    ),
+    _tool(
+        "get_open_pos",
+        "Get open purchase orders, optionally filtered by SKU and/or DC.",
+        {
             "type": "object",
             "properties": {
                 "sku": {"type": "string", "description": "Optional SKU filter"},
@@ -274,7 +276,7 @@ TOOL_SCHEMAS: list[dict] = [
             },
             "required": [],
         },
-    },
+    ),
 ]
 
 
