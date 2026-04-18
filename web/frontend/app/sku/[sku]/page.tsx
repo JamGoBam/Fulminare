@@ -227,7 +227,7 @@ export default function SkuPage({ params }: { params: Promise<{ sku: string }> }
         </h2>
         {isLoading ? (
           <div className="grid grid-cols-3 gap-4">
-            {[1, 2, 3].map((i) => <DcCardSkeleton key={i} />)}
+            {["east", "west", "central"].map((k) => <DcCardSkeleton key={k} />)}
           </div>
         ) : isError ? (
           <p className="text-sm text-slate-500">
