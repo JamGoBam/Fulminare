@@ -4,6 +4,8 @@ import "./globals.css";
 import { QueryProvider } from "@/components/QueryProvider";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Chatbot } from "@/components/Chatbot";
+import { Sidebar } from "@/components/Sidebar";
+import { TopBar } from "@/components/TopBar";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,7 +18,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Prince of Peace — Inventory Dashboard",
+  title: "Prince of Peace — Operations Hub",
   description: "3-DC inventory imbalance and chargeback detection",
 };
 
@@ -30,10 +32,18 @@ export default function RootLayout({
       lang="en"
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-zinc-50 dark:bg-zinc-950">
+      <body className="h-full">
         <QueryProvider>
           <TooltipProvider>
-            {children}
+            <div className="flex h-screen bg-slate-50">
+              <Sidebar />
+              <div className="flex-1 flex flex-col overflow-hidden">
+                <TopBar />
+                <main className="flex-1 overflow-auto">
+                  {children}
+                </main>
+              </div>
+            </div>
             <Chatbot />
           </TooltipProvider>
         </QueryProvider>
