@@ -15,19 +15,23 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards + Available Reports table (5 rows). `app/settings/page.tsx`: Preferences toggles, DC Labels read-only, Integrations with status badges. Zero errors.
-- Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=`, × clear. `FilterBar.tsx`: pills wired to `?status=`, DC dropdown to `?dc=`. `ActionQueue.tsx`: client-side filtering + EmptyState.
-- Completed **F9** — aria-current nav, keyboard nav rows, icon+color chips, 25-term glossary, OnboardingTour banner.
-- Completed **P11** — Ollama/OpenAI-compat swap; config.py; offline error path; 59 tests pass.
-- Completed **P12** — grounding validator, warning SSE, unverified footnote in Chatbot.
-- Completed **P13** — `/ask` full-screen chatbot page with deep-link `?q=` support, Ask nav entry.
-- Completed **P16** — End-to-end verification with backend running. All 5 scenarios pass: (1) Dashboard Action Queue loads live data (SKU-004 URGENT, $5K exposure); (2) clicking a row opens RecommendationPanel with $48K penalty risk, 40% confidence, reasoning bullets; (3) Analytics shows real heatmap + top causes bar chart + top-risk SKUs table; (4) Inventory Critical+DC_EAST filter shows 1 row with icon+color chip; (5) `/ask?q=Why+is+SKU-004+flagged` auto-sends and streams response. 59 pytest passing, zero browser console errors.
+- **U0 complete** — Reconnaissance pass. Started backend (:8000) + frontend (:3000). Confirmed all 11 UX bugs via `preview_*` MCP tools. No code changes made.
+- Bug locations confirmed: dual search (#1 TopBar.tsx:46-64 + FilterBar.tsx:83-89), bell no-op (#2 TopBar.tsx:68), URGENT/penalty overlap (#3 ActionQueue.tsx:163-167), unwired dropdowns (#4 FilterBar.tsx:104-112), always-blue comparison card (#5 ActionComparisonCard.tsx:49,51), console.log-only action buttons (#6 RecommendationPanel.tsx:162-186), missing Explain button (#7), Sheet overlay chatbot (#8 Chatbot.tsx:213-284), analytics redirect to / (#9 analytics/page.tsx:209), ActionQueue row layout mismatch (#10), InventoryMatrix column mismatch (#11).
+- All 59 pytest passing. Backend + frontend clean.
 
 ---
 
 ## NEXT TASK
 
-**DONE** — All planned phases (F1–F9, P11–P13, P16) are complete and verified.
+**U1 — Quick wins: remove TopBar search, fix URGENT overlap, wire cosmetic dropdowns**
+
+Acceptance criteria:
+1. **#1 TopBar search removed** — Delete lines 45-65 of `TopBar.tsx` (the `<div className="flex-1 max-w-xl">` block with the Search input). The Bell + date remain. FilterBar's search input (`FilterBar.tsx:83-89`) is wired: add `value` controlled by `params.get("q")` with 200ms debounce `onChange` → pushes `?q=` (same pattern as the now-deleted TopBar search).
+2. **#3 URGENT badge moved inline** — Remove `absolute top-2 right-3` URGENT badge from `ActionQueue.tsx:163-167`. Instead render it inline in the badge row (next to RecBadge at line 175), as a `<span className="bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">URGENT</span>`. Remove `pr-16` from the content div (line 171) since the absolute badge no longer needs that clearance. Penalty `$` is now unobscured.
+3. **#4 Cosmetic dropdowns wired** — In `FilterBar.tsx`, replace `COSMETIC_DROPDOWNS` static array approach. Each of the 4 selects gets its own `value` + `onChange` wired to URL params: `?risk=` (risk level), `?rec=` (recommendation), `?channel=` (channel), `?sort=` (sort order). In `ActionQueue.tsx`, read those 4 params and apply to the filter pipeline: risk → riskLevel match, rec → recommendation match, channel → (no channel field on ActionItem yet, skip filtering but keep param), sort → sort the filtered array by penalty|confidence|dc instead of default urgency.
+
+Commit message: `[FRONTEND] polish: U1 — remove TopBar search, fix URGENT overlap, wire cosmetic dropdowns`
+Then update this file (NEXT TASK → U2) and run `scripts/handoff.sh`.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -44,21 +48,22 @@ If additional work is needed, candidates from PLAN.md:
 
 ---
 
-## FILES IN PLAY
+## FILES IN PLAY (U1)
 
-- Any file with a broken integration gap found during P16 verification
+- `web/frontend/components/TopBar.tsx` — remove search input block
+- `web/frontend/components/FilterBar.tsx` — wire search + cosmetic dropdowns to URL params
+- `web/frontend/components/ActionQueue.tsx` — move URGENT inline, remove pr-16, add rec/risk/sort filtering
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
 - `web/api/chat_validator.py`, `web/api/routes/chat.py` — P12 deliverables
-- `web/frontend/components/Chatbot.tsx` — P12 deliverable; do not modify
-- All other frontend components (F1–F9 deliverables)
+- `web/frontend/components/Chatbot.tsx` — will change in U4; skip for now
 
 ## BLOCKERS
 
-- None. All parquet files exist in `data/processed/` (seed ingest + pipeline ran this session). Backend requires `pip install openai fastapi uvicorn pandas pyarrow duckdb pydantic` — `anthropic` dep in `chat.py` still needs P11 migration before backend fully starts.
+- None. Backend on :8000, frontend on :3000, 59 pytest passing.
 
 ## QUICK-RESUME PROMPT
 
