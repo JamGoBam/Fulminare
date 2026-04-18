@@ -18,6 +18,8 @@ Three linked workstreams for the real-user POP Inventory tool:
 - **U1 complete** — Removed TopBar search; wired FilterBar search to `?q=`; moved URGENT inline; wired 4 cosmetic dropdowns to URL params; ActionQueue consumes risk/rec/sort. Zero errors.
 - **U2 complete** — Bell popover live: `useState` dropdown in `TopBar.tsx`, reuses `["action-items"]` TanStack Query cache, lists top-3 URGENT rows (name · SKU · DC · days · penalty), clicking a row navigates to `/?selected=`, red dot hides when count=0.
 - **U3 complete** — #5: `recommended` prop on both comparison cards; Transfer card blue when Transfer Now is recommended, slate when not (and vice versa for Inbound card). #6: `ActionStatusProvider` + `useActionStatus` context with sessionStorage persistence; 4 action buttons update shared state; confirmation banner in panel; status chip + opacity + sink-to-bottom in ActionQueue. #7: "Explain in chat ↗" button under reasoning bullets calls `openChatbot()` with prefilled message. Zero console errors verified on fresh server start.
+- **U4 complete** — Draggable non-modal chatbot panel: replaced `<Sheet>` with fixed-position `div bottom-6 right-6`, pointer-event drag with viewport clamping, minimize/maximize via `ChevronDown`/`ChevronUp`, `X` close, FAB hidden when open. All SSE streaming logic intact.
+- **U5 complete** — Analytics page inline rec panel: `?selected=` URL state, `RecommendationPanel` embedded in 2-column layout alongside heatmap + top-risk SKUs; clicking a row in the top-risk table sets `?selected=`.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -26,80 +28,87 @@ pnpm --dir web/frontend dev                      # frontend → http://localhost
 ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
 ```
 
-If additional work is needed, candidates from PLAN.md:
-- **P8** — Transfers dedicated page (`/transfers`) with per-decision cards
-- **P9** — SKU detail page redesign (`/sku/[sku]`) with 3-DC cards + PO timeline
-- **P10** — Chargebacks drill-down with filters + top-10 offender list
-- Richer seed data (P1/P2) — 25 SKUs with varied patterns for more compelling demo
-
----
-
 ---
 
 ## NEXT TASK
 
-**U3 — Rec panel polish: conditional blue, action-button state, Explain button**
+**U6 — InventoryMatrix: saved views + row-click drill-through**
 
-Three sub-tasks, all in `web/frontend/components/`:
+One file only: `web/frontend/components/InventoryMatrix.tsx`
 
-**#5 — Conditional card color (`ActionComparisonCard.tsx`)**
-- `TransferComparisonCard` always shows `bg-blue-600` badge + `bg-blue-50/30` border even when the recommendation is Wait. Fix: add `recommended: boolean` prop. When `recommended=true`: keep current `border-blue-200 bg-blue-50/30` + `bg-blue-600` badge + `bg-blue-500` confidence bar. When `recommended=false`: use `border-slate-200 bg-slate-50/30` + `bg-slate-600` badge + `bg-slate-400` confidence bar.
-- In `RecommendationPanel.tsx`, pass `recommended={item.recommendation === "Transfer Now"}` to `TransferComparisonCard` and `recommended={item.recommendation === "Wait"}` to `InboundComparisonCard`. `InboundComparisonCard` needs the same `recommended` prop wired to its border/badge colors.
+**#1 — Saved views panel** (add below the DC selector in the left filter rail)
+- Add a `<div>` section labeled "Saved Views" (same style as existing section headers: `text-xs font-semibold text-slate-700 uppercase tracking-wide mb-2`).
+- 3 built-in presets as clickable buttons (`w-full text-left text-xs px-3 py-2 rounded-lg border`):
+  - "My morning triage" → `pushParams({ status: "Critical,Watch", dc: null })`
+  - "East DC watchlist" → `pushParams({ status: "Critical,Watch", dc: "DC_EAST" })`
+  - "Overstock candidates" → `pushParams({ status: "Overstock", dc: null })`
+- Active preset: highlight with `border-blue-200 bg-blue-50 text-blue-700`; inactive: `border-slate-200 bg-white text-slate-600 hover:bg-slate-50`.
+- A preset is "active" when the current URL params exactly match its filter values (compare status + dc params).
+- No localStorage in v1 — presets are read-only shortcuts, not saveable views (keep it simple).
 
-**#6 — Action-button client state (`RecommendationPanel.tsx`)**
-- Replace the 4 `console.log` buttons with real client state. Use a `Map<string, "approved"|"waiting"|"escalated"|"assigned">` stored in React context or `sessionStorage` (key: `"pop:actions"`). On button click: (a) save the status, (b) show a `<div>` confirmation banner inside the panel ("Marked for WMS review ✓"), (c) add a status chip on the matching Action Queue row (pass via context or use a `CustomEvent` dispatched to a listener in ActionQueue). The row moves to the bottom of the queue when it has a status. No backend call.
-- For the context approach: create `web/frontend/lib/action-status-context.tsx` exporting `ActionStatusProvider` and `useActionStatus()` hook. Wrap the layout in it. ActionQueue reads the map to sort resolved items to bottom and show a small chip.
+**#2 — Row-click navigation**
+- Make each `<tr>` in the table body a navigation target. On click: if `actionItem` exists for that row → `router.push("/?selected=" + actionItem.id)`; otherwise → `router.push("/sku/" + row.sku)`.
+- Add `cursor-pointer` to the `<tr>` className and an `onClick` handler.
+- The action button in the last column should still be clickable independently (stop event propagation on that cell).
 
-**#7 — "Explain in chat" button (`RecommendationPanel.tsx`)**
-- Under the "Why This Recommendation" bullet list, add a small ghost button: `<button onClick={...}>Explain in chat ↗</button>`. On click: call `openChatbot()` (imported from `ActionQueue.tsx`) with message: `` `Explain why ${item.sku} at ${item.atRiskDC} should ${item.recommendation}. Walk me through the reasoning bullets.` ``
-
-Commit: `[FRONTEND] polish: U3 — conditional card color, action-button state, Explain in chat`
-Then update prompt.md NEXT TASK → U4 and run `scripts/handoff.sh`.
+Commit: `[FRONTEND] polish: U6 — inventory saved views + row-click navigation`
+Then update prompt.md NEXT TASK → U7 and run `scripts/handoff.sh`.
 
 ---
 
-## NEXT TASK
+## NEXT TASK (after U6)
 
-**U4 — Draggable chatbot panel (replace Sheet)**
+**U7 — Chargebacks page: filter bar + top-customers list**
 
-Replace the `<Sheet>` in `web/frontend/components/Chatbot.tsx` with a draggable, non-modal fixed-position panel. Keep all SSE streaming logic intact.
+Files: `web/frontend/app/chargebacks/page.tsx` and `web/frontend/components/ChargebackHeatmap.tsx`
 
-Acceptance criteria:
-1. **No overlay / no blur** — remove `<Sheet>`, `<SheetContent>`, `<SheetHeader>`, `<SheetTitle>` entirely. No backdrop, no darkening of the dashboard.
-2. **Fixed panel** — `fixed bottom-6 right-6 w-96 h-[32rem] bg-white rounded-xl border border-slate-200 shadow-xl z-40 flex flex-col`. Hidden when `open=false` (use `display:none` or conditional render).
-3. **Drag handle** — the panel header (title bar) is draggable. Use `onPointerDown`/`onPointerMove`/`onPointerUp` on the header div. Translate the panel with `transform: translate(dx, dy)` state. Clamp so panel stays fully inside the viewport: `dx` in `[-(window.innerWidth - panelWidth - right), 0]`, `dy` in `[-(window.innerHeight - panelHeight - bottom), 0]` (adjust for starting position bottom-right). Reset drag offset to `{x:0, y:0}` when panel closes.
-4. **Minimize button** — a `ChevronDown` icon button in the header that sets `minimized=true`, collapsing panel to just the title bar (height `~48px`). Clicking the FAB or `ChevronUp` un-minimizes.
-5. **Close button** — `X` icon button in the header that closes (sets `open=false`). FAB still reopens.
-6. **FAB unchanged** — `fixed bottom-6 right-6 z-40` blue circle. When panel is open, FAB should be hidden (or overlap is fine since panel is bottom-right — just hide FAB when open to avoid visual clutter).
-7. **Keep all existing logic** — SSE streaming, `chat:prefill` event listener, suggestion chips, `unverified` footnote, tool-call pills.
+**#1 — Filter bar** (add above the heatmap card in `chargebacks/page.tsx`)
+- A `<div className="flex items-center gap-3 flex-wrap">` row with:
+  - Channel `<select>`: options ["All channels", "Direct", "Wholesale", "Retail", "Online"] (hardcode from known seed channels — do not fetch). Store in URL param `?channel=`.
+  - DC `<select>`: options ["All DCs", "DC East", "DC West", "DC Central"]. Store in URL param `?dc=`.
+- URL state: use `useSearchParams` + `useRouter`. Selecting a filter calls `router.push("/chargebacks?" + newParams)`.
+- Pass selected `channel` and `dc` as props to `<ChargebackHeatmap channel={channel} dc={dc} />`.
 
-Files: `web/frontend/components/Chatbot.tsx` only. Remove the shadcn Sheet imports; keep Button and Input imports.
+**#2 — ChargebackHeatmap props + plain-language labels**
+- Add optional `channel?: string` and `dc?: string` props to `ChargebackHeatmap`. When set, filter the `records` from the API response before rendering (client-side filter — no backend change needed).
+- Map cause codes to plain language in the row headers:
+  - `SHORT_SHIP` → "Short shipment"
+  - `LATE_DELIVERY` → "Late delivery"
+  - `DAMAGE` → "Damaged goods"
+  - `MISSED_WINDOW` → "Missed window"
+  (already done in analytics page — replicate here)
 
-Commit: `[FRONTEND] polish: U4 — draggable non-modal chatbot panel, no overlay`
-Then update prompt.md NEXT TASK → U5 and run `scripts/handoff.sh`.
+**#3 — Top-10 customers table** (add below the heatmap card in `chargebacks/page.tsx`)
+- Fetch `GET /api/chargebacks/top-customers?n=10`. Response shape: `{ customer_id: string, total_amount: number, count: number }[]`.
+- Render as a `<table>` with columns: Rank, Customer, Incidents, Total Exposure.
+- Format exposure with `fmt()`. Show rank as `#1`…`#10`.
+- Add the fetcher to `web/frontend/lib/api.ts`: `export function getTopCustomers(n=10): Promise<TopCustomer[]> { return apiGet(...) }` with `TopCustomer` interface.
+- Empty/loading states: skeleton rows while loading; "No chargeback data" message if empty.
 
-## FILES IN PLAY (U4)
+Commit: `[FRONTEND] polish: U7 — chargebacks filter bar, plain labels, top-customers table`
+Then update prompt.md NEXT TASK → U8 (or declare done if no more polish needed) and run `scripts/handoff.sh`.
 
-- `web/frontend/components/Chatbot.tsx` — replace Sheet with draggable fixed panel
+## FILES IN PLAY (U6)
+
+- `web/frontend/components/InventoryMatrix.tsx` — saved views + row-click
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
-- `web/api/chat_validator.py`, `web/api/routes/chat.py` — P12 deliverables
-- `web/frontend/components/Chatbot.tsx` — will change in U4; skip for now
+- `web/api/` — no backend changes for U6/U7
 
 ## BLOCKERS
 
-- None. Backend on :8000, frontend on :3000, 59 pytest passing.
+- None. Backend on :8000, frontend on :3000.
 
 ## QUICK-RESUME PROMPT
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (P16 — end-to-end verification) per the spec in prompt.md.
+Note: U1–U5 are complete. Execute NEXT TASK (U6 — InventoryMatrix saved views + row-click) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When P16 is done, update prompt.md and run scripts/handoff.sh.
+When U6 is done, update prompt.md NEXT TASK → U7 and run scripts/handoff.sh.
 ```
 
 ---
