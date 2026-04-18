@@ -6,6 +6,7 @@ import { AlertTriangle, DollarSign, Clock, Package } from "lucide-react"
 import { KpiCard } from "@/components/KpiCard"
 import { FilterBar } from "@/components/FilterBar"
 import { ActionQueue } from "@/components/ActionQueue"
+import { RecommendationPanel } from "@/components/RecommendationPanel"
 import { getSummary, getAlerts } from "@/lib/api"
 
 function fmtDollars(n: number) {
@@ -94,14 +95,9 @@ function DashboardContent() {
           </div>
         </div>
 
-        {/* Recommendation Panel placeholder — right 1/3 (wired in F4) */}
+        {/* Recommendation Panel — right 1/3 */}
         <div className="col-span-1">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 min-h-64">
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Recommendation Panel</h2>
-            <p className="text-slate-500 text-sm">
-              Select an item from the Action Queue to see the transfer-vs-wait comparison.
-            </p>
-          </div>
+          <RecommendationPanel />
         </div>
       </div>
     </div>
