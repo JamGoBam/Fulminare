@@ -16,7 +16,8 @@ Three linked workstreams for the real-user POP Inventory tool:
 ## LAST SESSION SUMMARY
 
 - **U1 complete** — Removed TopBar search; wired FilterBar search to `?q=`; moved URGENT inline; wired 4 cosmetic dropdowns to URL params; ActionQueue consumes risk/rec/sort. Zero errors.
-- **U2 complete** — Bell popover live: `useState` dropdown in `TopBar.tsx`, reuses `["action-items"]` TanStack Query cache, lists top-3 URGENT rows (name · SKU · DC · days · penalty), clicking a row navigates to `/?selected=`, red dot hides when count=0. Verified end-to-end via preview_*.
+- **U2 complete** — Bell popover live: `useState` dropdown in `TopBar.tsx`, reuses `["action-items"]` TanStack Query cache, lists top-3 URGENT rows (name · SKU · DC · days · penalty), clicking a row navigates to `/?selected=`, red dot hides when count=0.
+- **U3 complete** — #5: `recommended` prop on both comparison cards; Transfer card blue when Transfer Now is recommended, slate when not (and vice versa for Inbound card). #6: `ActionStatusProvider` + `useActionStatus` context with sessionStorage persistence; 4 action buttons update shared state; confirmation banner in panel; status chip + opacity + sink-to-bottom in ActionQueue. #7: "Explain in chat ↗" button under reasoning bullets calls `openChatbot()` with prefilled message. Zero console errors verified on fresh server start.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -55,13 +56,31 @@ Three sub-tasks, all in `web/frontend/components/`:
 Commit: `[FRONTEND] polish: U3 — conditional card color, action-button state, Explain in chat`
 Then update prompt.md NEXT TASK → U4 and run `scripts/handoff.sh`.
 
-## FILES IN PLAY (U3)
+---
 
-- `web/frontend/components/ActionComparisonCard.tsx` — add `recommended` prop, conditional colors
-- `web/frontend/components/RecommendationPanel.tsx` — pass `recommended`, add status state, Explain button
-- `web/frontend/lib/action-status-context.tsx` (new) — `ActionStatusProvider` + `useActionStatus`
-- `web/frontend/app/layout.tsx` (or the nearest `"use client"` wrapper) — wrap with provider
-- `web/frontend/components/ActionQueue.tsx` — read status context, sort resolved to bottom, show chip
+## NEXT TASK
+
+**U4 — Draggable chatbot panel (replace Sheet)**
+
+Replace the `<Sheet>` in `web/frontend/components/Chatbot.tsx` with a draggable, non-modal fixed-position panel. Keep all SSE streaming logic intact.
+
+Acceptance criteria:
+1. **No overlay / no blur** — remove `<Sheet>`, `<SheetContent>`, `<SheetHeader>`, `<SheetTitle>` entirely. No backdrop, no darkening of the dashboard.
+2. **Fixed panel** — `fixed bottom-6 right-6 w-96 h-[32rem] bg-white rounded-xl border border-slate-200 shadow-xl z-40 flex flex-col`. Hidden when `open=false` (use `display:none` or conditional render).
+3. **Drag handle** — the panel header (title bar) is draggable. Use `onPointerDown`/`onPointerMove`/`onPointerUp` on the header div. Translate the panel with `transform: translate(dx, dy)` state. Clamp so panel stays fully inside the viewport: `dx` in `[-(window.innerWidth - panelWidth - right), 0]`, `dy` in `[-(window.innerHeight - panelHeight - bottom), 0]` (adjust for starting position bottom-right). Reset drag offset to `{x:0, y:0}` when panel closes.
+4. **Minimize button** — a `ChevronDown` icon button in the header that sets `minimized=true`, collapsing panel to just the title bar (height `~48px`). Clicking the FAB or `ChevronUp` un-minimizes.
+5. **Close button** — `X` icon button in the header that closes (sets `open=false`). FAB still reopens.
+6. **FAB unchanged** — `fixed bottom-6 right-6 z-40` blue circle. When panel is open, FAB should be hidden (or overlap is fine since panel is bottom-right — just hide FAB when open to avoid visual clutter).
+7. **Keep all existing logic** — SSE streaming, `chat:prefill` event listener, suggestion chips, `unverified` footnote, tool-call pills.
+
+Files: `web/frontend/components/Chatbot.tsx` only. Remove the shadcn Sheet imports; keep Button and Input imports.
+
+Commit: `[FRONTEND] polish: U4 — draggable non-modal chatbot panel, no overlay`
+Then update prompt.md NEXT TASK → U5 and run `scripts/handoff.sh`.
+
+## FILES IN PLAY (U4)
+
+- `web/frontend/components/Chatbot.tsx` — replace Sheet with draggable fixed panel
 
 ## LOCKED / DO NOT TOUCH
 

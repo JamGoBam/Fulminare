@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation"
 import { AlertCircle, Clock, CheckCircle, DollarSign, Package } from "lucide-react"
 import { getActionItems } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
+import { useActionStatus, type ActionStatus } from "@/lib/action-status-context"
 
 export function openChatbot(message: string) {
   window.dispatchEvent(new CustomEvent("chat:prefill", { detail: { message } }))
@@ -42,6 +43,13 @@ function RecBadge({ rec }: { rec: string }) {
   )
 }
 
+const STATUS_CHIP: Record<ActionStatus, { label: string; cls: string }> = {
+  approved:  { label: "✓ Approved",   cls: "bg-green-100 text-green-700" },
+  waiting:   { label: "⏳ Monitoring", cls: "bg-slate-100 text-slate-600" },
+  escalated: { label: "↑ Escalated",  cls: "bg-purple-100 text-purple-700" },
+  assigned:  { label: "→ Assigned",   cls: "bg-blue-100 text-blue-700" },
+}
+
 function Skeleton() {
   return (
     <div className="space-y-2 p-4">
@@ -72,6 +80,8 @@ const PILL_FILTER: Record<string, (item: ActionItem) => boolean> = {
 export function ActionQueue() {
   const router = useRouter()
   const params = useSearchParams()
+  const { statuses } = useActionStatus()
+
   const selectedId = params.get("selected")
   const q          = (params.get("q")       ?? "").toLowerCase().trim()
   const activeDc   = (params.get("dc")      ?? "").toLowerCase()
@@ -135,7 +145,7 @@ export function ActionQueue() {
     filtered = filtered.filter((item) => item.recommendation === recFilter)
   }
 
-  // Sort
+  // Primary sort by user preference
   if (sortBy === "penalty") {
     filtered = [...filtered].sort((a, b) => b.potentialPenalty - a.potentialPenalty)
   } else if (sortBy === "confidence") {
@@ -143,9 +153,15 @@ export function ActionQueue() {
   } else if (sortBy === "dc") {
     filtered = [...filtered].sort((a, b) => a.atRiskDC.localeCompare(b.atRiskDC))
   } else {
-    // default: urgency (days ascending)
     filtered = [...filtered].sort((a, b) => a.daysUntilStockout - b.daysUntilStockout)
   }
+
+  // Resolved items always sink to the bottom (stable secondary sort)
+  filtered = [...filtered].sort((a, b) => {
+    const aR = statuses[a.id] ? 1 : 0
+    const bR = statuses[b.id] ? 1 : 0
+    return aR - bR
+  })
 
   // Top 3 High-risk rows get URGENT badge (based on unfiltered data)
   const urgentIds = new Set(
@@ -169,6 +185,7 @@ export function ActionQueue() {
         const isSelected = item.id === selectedId
         const isUrgent = urgentIds.has(item.id)
         const days = item.daysUntilStockout
+        const itemStatus = statuses[item.id] as ActionStatus | undefined
 
         return (
           <li
@@ -181,6 +198,7 @@ export function ActionQueue() {
             className={`flex items-start gap-3 px-4 py-4 cursor-pointer border-l-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-inset
               ${isSelected ? "bg-blue-50 border-l-blue-600" : `${accentBorder(days)} hover:bg-slate-50`}
               ${isUrgent && !isSelected ? "bg-red-50/30" : ""}
+              ${itemStatus ? "opacity-60" : ""}
             `}
           >
             <div className="mt-0.5">{urgencyIcon(days)}</div>
@@ -193,6 +211,11 @@ export function ActionQueue() {
                 {isUrgent && (
                   <span className="bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
                     URGENT
+                  </span>
+                )}
+                {itemStatus && (
+                  <span className={`text-xs font-medium px-2 py-0.5 rounded ${STATUS_CHIP[itemStatus].cls}`}>
+                    {STATUS_CHIP[itemStatus].label}
                   </span>
                 )}
                 {days < 9999 && (
