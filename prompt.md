@@ -15,60 +15,57 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- Completed **F1** — `Sidebar.tsx`, `TopBar.tsx`, root layout shell, route stubs (`/inventory`, `/analytics`, `/reports`, `/settings`), `lib/types.ts` with `ActionItem` shape. All 5 routes smoke-tested, zero console errors.
-- Completed **F2** — `KpiCard.tsx`, `FilterBar.tsx` (with toggling quick-filter pills), updated `app/page.tsx` to 4-KPI-card + filter bar + 2-column Dashboard shell. KPI cards for "Urgent Actions" and "Total Chargeback Risk" wired to live `/api/summary` and `/api/recommendations/alerts` via TanStack Query; "Delayed Inbounds" and "Overstocked DCs" show `—` until P3 enriched data lands. Action Queue and Recommendation Panel render as labeled placeholders.
-- Merged `FIGMA_PROMPT.md` content into this file so future sessions read one document.
+- Completed **F1** — `Sidebar.tsx`, `TopBar.tsx`, root layout shell, route stubs (`/inventory`, `/analytics`, `/reports`, `/settings`), `lib/types.ts` with `ActionItem` shape.
+- Completed **F2** — `KpiCard.tsx`, `FilterBar.tsx` (toggling quick-filter pills), 4-KPI-card + filter bar + 2-column Dashboard shell. "Urgent Actions" and "Total Chargeback Risk" live from `/api/summary` + `/api/recommendations/alerts`; others show `—` until P3 enriched data.
+- Completed **F3** — `GET /api/action-items` backend endpoint (joins `transfers_computed` + `skus` + `open_po` + `inventory`; returns `ActionItem[]`); refactored `ActionQueue.tsx` (URGENT badge on top-3 High rows, row accent border by `daysUntilStockout`, URL-state selection via `?selected=<id>`, graceful error/empty states). Backend endpoint verified directly with Python. Frontend renders skeleton + graceful error when backend offline.
+- Merged `FIGMA_PROMPT.md` into this file; ran seed ingest + pipeline to generate all parquet files in `data/processed/`.
 
 ---
 
 ## NEXT TASK
 
-**F3 — Action Queue live** (fetch from `/api/action-items`, URGENT badges, row click → `?selected=<sku>`, accent color by `daysUntilStockout`).
+**F4 — Recommendation Panel live** — driven by `?selected=<id>` URL param; full 2-card decision comparison + reasoning + Evidence & Timeline.
 
-### What to build first: `GET /api/action-items` backend endpoint
+### What to build
 
-Source files (all already exist in `data/processed/`):
-- `enriched.parquet` — `status_plain`, `status_reason`, `dollar_exposure`, `days_until_stockout`, `recommended_action`, `next_po_eta`
-- `transfers_computed.parquet` — `action`, `cost`, `qty_needed`, `origin_dc`, `penalty_avoided`, `net_saving`
-- `open_po.parquet` — `expected_arrival`, `delay_flag`, `qty`
-- `skus.parquet` — `product_name`, `category`, `brand`
+New component `components/RecommendationPanel.tsx`:
+1. Reads `?selected` from `useSearchParams()`. If absent → empty state: "Select an item from the Action Queue to see the recommendation."
+2. Finds the selected `ActionItem` from the already-loaded `["action-items"]` query (no extra fetch).
+3. **Header**: item name, SKU, at-risk DC.
+4. **Summary sentence** (verbatim):
+   - Transfer Now → `Execute immediate transfer to prevent {daysUntilStockout}-day stockout and avoid {potentialPenalty} in penalties.`
+   - Wait → `Monitor inbound shipment. Current trajectory shows arrival before stockout with minimal risk exposure.`
+   - Escalate → `Critical situation requiring executive decision. No standard transfer options available.`
+5. **2-card comparison** (`ActionComparisonCard.tsx`, new):
+   - Option A — Transfer Now: `sourceDC`, `unitsAvailable`, `leadTime`, `estimatedArrival`, `cost`, `postTransferHealth`, confidence bar (`bg-blue-500` fill at `{confidence}%`).
+   - Option B — Wait for Inbound: `poEta`, `delayRisk`, `complianceFlags`, `stockoutWindow`, `penaltyRisk`, confidence bar.
+   - Confidence bar: `w-full bg-slate-200 rounded-full h-2` with colored fill.
+   - Escalate edge case: `sourceDC === "None available"` / `unitsAvailable === 0` must not crash — show "No transfer source available"; confidence 0% not empty.
+6. **"Why This Recommendation"** — `reasoning[]` as bullet list.
+7. **Evidence & Timeline** (`PoTimeline.tsx`, new) — simple horizontal flex timeline: past-PO blocks → today marker → open-PO ETA block. CSS-only (no Recharts needed for this). Reused in `/sku/[sku]` (F9).
+8. **Action buttons** (stubs — log only, no mutation):
+   - "Approve Transfer", "Wait and Monitor", "Escalate", "Assign Owner" → `console.log("Marked for WMS review:", item.id)`.
 
-Join on `(sku, dest_dc)`. Map to `ActionItem` shape from `lib/types.ts`:
-- `recommendation` ← `"TRANSFER"→"Transfer Now"`, `"WAIT"→"Wait"`, `"ESCALATE"→"Escalate"`
-- `riskLevel` ← `days_until_stockout < 14 → "High"`, `< 30 → "Medium"`, else `"Low"`
-- `confidence` ← `100 - (missing_fields * 10)` (simple proxy)
-- `reasoning[]` ← 3 bullets from `status_reason` + `next_po_eta` + `delay_flag`
-- `updatedAt` ← pipeline run timestamp
-
-Add to `web/api/routes/` as `action_items.py`; register in `web/api/main.py`.
-
-### Frontend: `ActionQueue.tsx` refactor
-
-Existing `components/ActionQueue.tsx` fetches from `/api/recommendations/alerts`. Refactor to:
-1. Fetch from new `GET /api/action-items` via `getActionItems()` fetcher in `lib/api.ts`.
-2. Row click → `router.push(`/?selected=${item.sku}`)` (URL state, no Zustand).
-3. Selected row: `bg-blue-50 border-l-4 border-l-blue-600`.
-4. Top 3 `riskLevel="High"` rows get **URGENT** badge: `bg-red-600 text-white text-xs font-semibold px-2 py-1 rounded` positioned top-right.
-5. Row left-border accent color: `≤1d → border-l-red-500`, `≤3d → border-l-amber-500`, `≤7d → border-l-yellow-400`, else `border-l-slate-200`.
-6. Wire into `app/page.tsx` (replace the Action Queue placeholder card).
+Wire into `app/page.tsx` — replace Recommendation Panel placeholder with `<RecommendationPanel />`.
 
 ### Acceptance criteria
 
-1. `GET /api/action-items` returns `ActionItem[]`; `pytest -q` still passes.
-2. Action Queue renders rows from real data with URGENT badges on top-3 High rows.
-3. Clicking a row updates URL to `?selected=<sku>`; selected row is visually highlighted.
-4. Row accent color visibly varies with `daysUntilStockout`.
-5. Zero console errors on `/`.
+1. Clicking an Action Queue row populates the panel with correct item data.
+2. All 3 recommendation types render the correct summary sentence.
+3. Both comparison cards render with confidence bars.
+4. Reasoning bullets display.
+5. Evidence & Timeline renders (even simple CSS layout).
+6. Buttons log to console, no mutations.
+7. Zero console errors.
 
 ---
 
 ## FILES IN PLAY
 
-- `web/api/routes/action_items.py` (new)
-- `web/api/main.py` (add router)
-- `web/frontend/components/ActionQueue.tsx` (refactor)
-- `web/frontend/lib/api.ts` (add `getActionItems()`)
-- `web/frontend/app/page.tsx` (replace Action Queue placeholder)
+- `web/frontend/components/RecommendationPanel.tsx` (new)
+- `web/frontend/components/ActionComparisonCard.tsx` (new)
+- `web/frontend/components/PoTimeline.tsx` (new)
+- `web/frontend/app/page.tsx` (replace Recommendation Panel placeholder)
 
 ## LOCKED / DO NOT TOUCH
 
@@ -76,18 +73,19 @@ Existing `components/ActionQueue.tsx` fetches from `/api/recommendations/alerts`
 - `scripts/handoff.sh` — handoff mechanism
 - `components/Sidebar.tsx`, `components/TopBar.tsx`, `app/layout.tsx` — F1 deliverables
 - `components/KpiCard.tsx`, `components/FilterBar.tsx` — F2 deliverables
+- `components/ActionQueue.tsx`, `web/api/routes/action_items.py` — F3 deliverables
 
 ## BLOCKERS
 
-- `enriched.parquet` may not exist yet (P3 not run). The endpoint should return 503 with `{"detail": "Data not ready — run analytics pipeline first"}` if file missing, matching the pattern in `recommendations.py`.
+- None. All parquet files exist in `data/processed/` (seed ingest + pipeline ran this session). Backend requires `pip install openai fastapi uvicorn pandas pyarrow duckdb pydantic` — `anthropic` dep in `chat.py` still needs P11 migration before backend fully starts.
 
 ## QUICK-RESUME PROMPT
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Execute NEXT TASK (F3 — Action Queue live) per the spec in prompt.md.
+Execute NEXT TASK (F4 — Recommendation Panel live) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When F3 is done, update prompt.md NEXT TASK to F4, then run scripts/handoff.sh.
+When F4 is done, update prompt.md NEXT TASK to F5, then run scripts/handoff.sh.
 ```
 
 ---
@@ -100,8 +98,8 @@ When F3 is done, update prompt.md NEXT TASK to F4, then run scripts/handoff.sh.
 |---|---|---|---|
 | F1 | App shell + sidebar + top bar + routes | ✅ Done | `Sidebar.tsx`, `TopBar.tsx`, layout shell, `/inventory` `/analytics` `/reports` `/settings` stubs, `lib/types.ts` |
 | F2 | Dashboard shell + KPI cards + filter bar | ✅ Done | `KpiCard.tsx`, `FilterBar.tsx`, 2-column placeholder layout, live KPI data from `/api/summary` + `/api/recommendations/alerts` |
-| F3 | Action Queue live | 🔲 Next | `/api/action-items` endpoint, refactor `ActionQueue.tsx`, URGENT badges, URL-state selection |
-| F4 | Recommendation Panel live | 🔲 | `RecommendationPanel.tsx`, `ActionComparisonCard.tsx`, driven by `?selected` param, `PoTimeline.tsx` |
+| F3 | Action Queue live | ✅ Done | `/api/action-items` endpoint, refactored `ActionQueue.tsx`, URGENT badges, URL-state selection, accent borders |
+| F4 | Recommendation Panel live | 🔲 Next | `RecommendationPanel.tsx`, `ActionComparisonCard.tsx`, `PoTimeline.tsx`, driven by `?selected` param |
 | F5 | Inventory matrix | 🔲 | `/inventory` — 4 summary cards + matrix table, refactor `ImbalanceTable.tsx` to new columns |
 | F6 | Analytics | 🔲 | `/analytics` — 4 KPI tiles + chargebacks heatmap + penalty charts + top-risk SKUs |
 | F7 | Reports + Settings stubs | 🔲 | Reports quick-action cards + available reports list; Settings preferences/DC-labels/integrations cards |

@@ -1,9 +1,11 @@
 "use client"
 
+import { Suspense } from "react"
 import { useQuery } from "@tanstack/react-query"
 import { AlertTriangle, DollarSign, Clock, Package } from "lucide-react"
 import { KpiCard } from "@/components/KpiCard"
 import { FilterBar } from "@/components/FilterBar"
+import { ActionQueue } from "@/components/ActionQueue"
 import { getSummary, getAlerts } from "@/lib/api"
 
 function fmtDollars(n: number) {
@@ -12,7 +14,7 @@ function fmtDollars(n: number) {
   return `$${Math.round(n)}`
 }
 
-export default function DashboardPage() {
+function DashboardContent() {
   const { data: summary } = useQuery({
     queryKey: ["summary"],
     queryFn: getSummary,
@@ -79,24 +81,37 @@ export default function DashboardPage() {
       <FilterBar />
 
       <div className="grid grid-cols-3 gap-6">
+        {/* Action Queue — left 2/3 */}
         <div className="col-span-2">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 min-h-64">
-            <h2 className="text-lg font-semibold text-slate-900 mb-1">Action Queue</h2>
-            <p className="text-slate-500 text-sm">
-              Live prioritized decisions coming in F3 — URGENT badges, row accent colors, row click → Recommendation Panel.
-            </p>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="px-4 py-4 border-b border-slate-100">
+              <h2 className="text-lg font-semibold text-slate-900">Action Queue</h2>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Ranked by urgency — click a row to see the recommendation
+              </p>
+            </div>
+            <ActionQueue />
           </div>
         </div>
 
+        {/* Recommendation Panel placeholder — right 1/3 (wired in F4) */}
         <div className="col-span-1">
           <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 min-h-64">
             <h2 className="text-lg font-semibold text-slate-900 mb-1">Recommendation Panel</h2>
             <p className="text-slate-500 text-sm">
-              Select an item from the Action Queue to see the transfer-vs-wait comparison with dollar tradeoffs.
+              Select an item from the Action Queue to see the transfer-vs-wait comparison.
             </p>
           </div>
         </div>
       </div>
     </div>
+  )
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense>
+      <DashboardContent />
+    </Suspense>
   )
 }

@@ -31,3 +31,7 @@ export function getSummary(): Promise<SummaryData> {
 export function getAlerts(limit = 10): Promise<AlertData[]> {
   return apiGet<AlertData[]>(`/api/recommendations/alerts?limit=${limit}`)
 }
+
+export function getActionItems(): Promise<import("./types").ActionItem[]> {
+  return apiGet("/api/action-items")
+}

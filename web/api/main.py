@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from web.api.routes import inventory, chargebacks, recommendations, chat
+from web.api.routes import inventory, chargebacks, recommendations, chat, action_items
 
 _SEED = Path("data/seed")
 _PROCESSED = Path("data/processed")
@@ -41,6 +41,7 @@ app.add_middleware(
 app.include_router(inventory.router, prefix="/api")
 app.include_router(chargebacks.router, prefix="/api")
 app.include_router(recommendations.router, prefix="/api")
+app.include_router(action_items.router, prefix="/api")
 app.include_router(chat.router, prefix="/api")
 
 

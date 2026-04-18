@@ -1,119 +1,148 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import axios from "axios"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { API_BASE } from "@/lib/api"
-
-const API_URL = `${API_BASE}/api/recommendations/alerts`
-
-interface AlertRow {
-  rank: number
-  sku: string
-  dc: string
-  priority_score: number
-  action: string | null
-  reason: string
-  days_to_stockout: number | null
-  exposure_dollars: number
-}
+import { useRouter, useSearchParams } from "next/navigation"
+import { AlertCircle, Clock, CheckCircle, DollarSign } from "lucide-react"
+import { getActionItems } from "@/lib/api"
+import type { ActionItem } from "@/lib/types"
 
 export function openChatbot(message: string) {
   window.dispatchEvent(new CustomEvent("chat:prefill", { detail: { message } }))
 }
 
-function fmt(n: number): string {
-  return `$${Math.round(n).toLocaleString("en-US")}`
+function fmt(n: number) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000) return `$${Math.round(n / 1_000)}K`
+  return `$${Math.round(n)}`
 }
 
-function ActionBadge({ action }: { action: string }) {
-  if (action === "TRANSFER")
-    return (
-      <Badge className="bg-blue-600 text-white text-xs shrink-0">TRANSFER</Badge>
-    )
+function urgencyIcon(days: number) {
+  if (days <= 1) return <AlertCircle className="w-4 h-4 text-red-500 shrink-0" />
+  if (days <= 3) return <Clock className="w-4 h-4 text-amber-500 shrink-0" />
+  return <CheckCircle className="w-4 h-4 text-slate-400 shrink-0" />
+}
+
+function accentBorder(days: number) {
+  if (days <= 1) return "border-l-red-500"
+  if (days <= 3) return "border-l-amber-500"
+  if (days <= 7) return "border-l-yellow-400"
+  return "border-l-slate-200"
+}
+
+function RecBadge({ rec }: { rec: string }) {
+  const styles: Record<string, string> = {
+    "Transfer Now": "bg-blue-600 text-white",
+    "Wait": "bg-slate-600 text-white",
+    "Escalate": "bg-purple-600 text-white",
+  }
   return (
-    <Badge variant="secondary" className="text-xs shrink-0">
-      WAIT
-    </Badge>
+    <span className={`text-xs font-semibold px-2 py-0.5 rounded ${styles[rec] ?? "bg-slate-200 text-slate-700"}`}>
+      {rec}
+    </span>
   )
 }
 
-function SkeletonRows() {
+function Skeleton() {
   return (
     <div className="space-y-2 p-4">
-      {Array.from({ length: 3 }).map((_, i) => (
-        <div
-          key={i}
-          className="h-12 rounded-md bg-zinc-100 dark:bg-zinc-800 animate-pulse"
-        />
+      {[1, 2, 3].map((i) => (
+        <div key={i} className="h-16 rounded-lg bg-slate-100 animate-pulse" />
       ))}
     </div>
   )
 }
 
 export function ActionQueue() {
-  const { data, isLoading, isError } = useQuery<AlertRow[]>({
-    queryKey: ["alerts"],
-    queryFn: () => axios.get<AlertRow[]>(API_URL).then((r) => r.data),
+  const router = useRouter()
+  const params = useSearchParams()
+  const selectedId = params.get("selected")
+
+  const { data, isLoading, isError } = useQuery<ActionItem[]>({
+    queryKey: ["action-items"],
+    queryFn: getActionItems,
     refetchInterval: 30_000,
   })
 
-  if (isLoading) return <SkeletonRows />
-  if (isError || !data || data.length === 0) return null
+  if (isLoading) return <Skeleton />
+
+  if (isError) {
+    return (
+      <div className="p-6 text-sm text-slate-500">
+        We couldn&apos;t load today&apos;s data — try again in a moment.
+      </div>
+    )
+  }
+
+  if (!data || data.length === 0) {
+    return (
+      <div className="p-6 text-sm text-slate-500">
+        All SKUs balanced — no action needed ✓
+      </div>
+    )
+  }
+
+  // Top 3 High-risk rows get URGENT badge
+  const urgentIds = new Set(
+    data
+      .filter((item) => item.riskLevel === "High")
+      .slice(0, 3)
+      .map((item) => item.id)
+  )
+
+  function select(id: string) {
+    const next = new URLSearchParams(params.toString())
+    next.set("selected", id)
+    router.push(`/?${next.toString()}`)
+  }
 
   return (
-    <div className="rounded-lg border bg-card">
-      <div className="px-4 py-3 border-b">
-        <h2 className="text-sm font-semibold">Action Queue</h2>
-        <p className="text-xs text-muted-foreground mt-0.5">
-          Ranked by urgency — address these first.
-        </p>
-      </div>
-      <ul className="divide-y">
-        {data.map((alert) => (
+    <ul className="divide-y divide-slate-100">
+      {data.map((item) => {
+        const isSelected = item.id === selectedId
+        const isUrgent = urgentIds.has(item.id)
+        const days = item.daysUntilStockout
+
+        return (
           <li
-            key={`${alert.rank}-${alert.sku}-${alert.dc}`}
-            className="flex items-start gap-3 px-4 py-3"
+            key={item.id}
+            onClick={() => select(item.id)}
+            className={`relative flex items-start gap-3 px-4 py-4 cursor-pointer border-l-4 transition-colors
+              ${isSelected ? "bg-blue-50 border-l-blue-600" : `${accentBorder(days)} hover:bg-slate-50`}
+              ${isUrgent && !isSelected ? "bg-red-50/30" : ""}
+            `}
           >
-            <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-xs font-bold text-primary">
-              {alert.rank}
-            </span>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2 flex-wrap">
-                <span className="font-mono text-xs font-semibold">{alert.sku}</span>
-                <span className="text-xs text-muted-foreground">{alert.dc}</span>
-                {alert.action && <ActionBadge action={alert.action} />}
-                {alert.days_to_stockout !== null && (
-                  <span className="text-xs text-destructive font-medium">
-                    {Math.round(alert.days_to_stockout)}d to stockout
+            {/* URGENT badge */}
+            {isUrgent && (
+              <span className="absolute top-2 right-3 bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">
+                URGENT
+              </span>
+            )}
+
+            <div className="mt-0.5">{urgencyIcon(days)}</div>
+
+            <div className="flex-1 min-w-0 pr-16">
+              <div className="flex items-center gap-2 flex-wrap mb-0.5">
+                <span className="font-mono text-xs font-semibold text-slate-800">{item.sku}</span>
+                <span className="text-xs text-slate-500">{item.atRiskDC}</span>
+                <RecBadge rec={item.recommendation} />
+                {days < 9999 && (
+                  <span className={`text-xs font-medium ${days <= 7 ? "text-red-600" : "text-amber-600"}`}>
+                    {Math.round(days)}d to stockout
                   </span>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">
-                {alert.reason}
-              </p>
+              <p className="text-xs text-slate-500 line-clamp-1">{item.reason}</p>
             </div>
+
             <div className="flex items-center gap-2 shrink-0">
-              <span className="text-xs font-semibold text-destructive whitespace-nowrap">
-                {fmt(alert.exposure_dollars)}
+              <span className="text-xs font-semibold text-red-600 whitespace-nowrap">
+                {fmt(item.potentialPenalty)}
               </span>
-              <Button
-                size="sm"
-                variant="outline"
-                className="h-7 text-xs px-2"
-                onClick={() =>
-                  openChatbot(
-                    `Explain alert #${alert.rank}: ${alert.sku} at ${alert.dc} — ${alert.reason}`
-                  )
-                }
-              >
-                Explain
-              </Button>
+              <DollarSign className="w-3.5 h-3.5 text-slate-400" />
             </div>
           </li>
-        ))}
-      </ul>
-    </div>
+        )
+      })}
+    </ul>
   )
 }
