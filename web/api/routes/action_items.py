@@ -138,7 +138,7 @@ def get_action_items() -> list[dict]:
     )
 
     df = transfers.merge(
-        skus[["sku", "product_name", "category", "brand"]], on="sku", how="left"
+        skus[["sku", "category", "brand"]], on="sku", how="left"
     ).merge(inv_totals, on="sku", how="left")
 
     now_iso = datetime.utcnow().isoformat()

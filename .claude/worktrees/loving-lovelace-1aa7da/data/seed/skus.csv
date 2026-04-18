@@ -1,0 +1,5 @@
+sku,product_name,brand,category,pack_size,units_per_case,shelf_life_days,supplier_id
+SKU-001,Ginger Chews Original 3.5oz,Prince of Peace,Candy,3.5oz bag,12,730,SUP-A
+SKU-002,American Ginseng Tea 20ct,Prince of Peace,Tea,20ct box,6,1095,SUP-B
+SKU-003,Ginger Honey Crystals 18ct,Prince of Peace,Supplements,18ct box,6,1825,SUP-C
+SKU-004,Reishi Mushroom Capsules 60ct,Prince of Peace,Supplements,60ct bottle,12,1095,SUP-A

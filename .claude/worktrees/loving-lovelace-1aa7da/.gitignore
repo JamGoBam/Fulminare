@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+
+# Node
+node_modules/
+.next/
+.turbo/
+dist/
+build/
+*.tsbuildinfo
+
+# Data — raw CSVs never committed; seed CSVs ARE committed
+/data/raw/**
+!/data/raw/.gitkeep
+/data/processed/*.parquet
+/data/processed/*.duckdb
+/data/processed/*.duckdb.wal
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Env
+.env
+.env.local
+.env.*.local
