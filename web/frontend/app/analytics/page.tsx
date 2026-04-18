@@ -1,10 +1,11 @@
 "use client"
 
 import { useQuery } from "@tanstack/react-query"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { DollarSign, TrendingDown, AlertTriangle, Zap, Clock } from "lucide-react"
 import { KpiCard } from "@/components/KpiCard"
 import { ChargebackHeatmap } from "@/components/ChargebackHeatmap"
+import { RecommendationPanel } from "@/components/RecommendationPanel"
 import { getSummary, getTopCauses, getActionItems } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
 
@@ -52,6 +53,8 @@ function CauseBarChart({ data }: { data: { label: string; amount: number }[] }) 
 
 function AnalyticsContent() {
   const router = useRouter()
+  const params = useSearchParams()
+  const selectedId = params.get("selected")
 
   const { data: summary } = useQuery({
     queryKey: ["summary"],
@@ -168,85 +171,95 @@ function AnalyticsContent() {
         </div>
       </div>
 
-      {/* Top-risk SKUs */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100">
-          <h2 className="text-base font-semibold text-slate-900">Top-Risk SKUs</h2>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Highest penalty exposure — click to open recommendation
-          </p>
+      {/* Top-risk SKUs + inline recommendation panel */}
+      <div className={`grid gap-6 ${selectedId ? "grid-cols-[1fr_400px]" : "grid-cols-1"}`}>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-slate-100">
+            <h2 className="text-base font-semibold text-slate-900">Top-Risk SKUs</h2>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Highest penalty exposure — click to open recommendation
+            </p>
+          </div>
+
+          {topRisk.length === 0 ? (
+            <div className="p-8 text-sm text-center text-slate-400">
+              {actionItems === undefined
+                ? "Loading…"
+                : "All SKUs balanced — no action needed ✓"}
+            </div>
+          ) : (
+            <table className="w-full text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100">
+                <tr>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 w-28">SKU</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600">Item</th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 w-24">DC</th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-600 w-28">
+                    <span className="flex items-center justify-end gap-1">
+                      <Clock className="w-3 h-3" />
+                      Days left
+                    </span>
+                  </th>
+                  <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-600 w-28">
+                    At-risk $
+                  </th>
+                  <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 w-36">Action</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {topRisk.map((item) => (
+                  <tr
+                    key={item.id}
+                    onClick={() => router.push(`/analytics?selected=${item.id}`)}
+                    className={`hover:bg-slate-50 cursor-pointer transition-colors ${
+                      item.id === selectedId ? "bg-blue-50" : ""
+                    }`}
+                  >
+                    <td className="px-4 py-3">
+                      <span className="font-mono text-xs font-semibold text-slate-800">{item.sku}</span>
+                    </td>
+                    <td className="px-4 py-3 max-w-0">
+                      <p className="text-sm text-slate-700 truncate">{item.itemName}</p>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span className="text-xs text-slate-600">{item.atRiskDC}</span>
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      {item.daysUntilStockout < 9999 ? (
+                        <span
+                          className={`text-sm font-medium ${
+                            item.daysUntilStockout <= 7 ? "text-red-600" : "text-amber-600"
+                          }`}
+                        >
+                          {Math.round(item.daysUntilStockout)}d
+                        </span>
+                      ) : (
+                        <span className="text-slate-400">—</span>
+                      )}
+                    </td>
+                    <td className="px-4 py-3 text-right tabular-nums">
+                      <span className="text-sm font-semibold text-red-600">
+                        {fmtDollars(item.potentialPenalty)}
+                      </span>
+                    </td>
+                    <td className="px-4 py-3">
+                      <span
+                        className={`text-xs font-semibold px-2 py-1 rounded ${recBadgeClass(item.recommendation)}`}
+                      >
+                        {item.recommendation}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
 
-        {topRisk.length === 0 ? (
-          <div className="p-8 text-sm text-center text-slate-400">
-            {actionItems === undefined
-              ? "Loading…"
-              : "All SKUs balanced — no action needed ✓"}
+        {selectedId && (
+          <div className="min-w-0">
+            <RecommendationPanel />
           </div>
-        ) : (
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 border-b border-slate-100">
-              <tr>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 w-28">SKU</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600">Item</th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 w-24">DC</th>
-                <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-600 w-28">
-                  <span className="flex items-center justify-end gap-1">
-                    <Clock className="w-3 h-3" />
-                    Days left
-                  </span>
-                </th>
-                <th className="text-right px-4 py-2.5 text-xs font-semibold text-slate-600 w-28">
-                  At-risk $
-                </th>
-                <th className="text-left px-4 py-2.5 text-xs font-semibold text-slate-600 w-36">Action</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {topRisk.map((item) => (
-                <tr
-                  key={item.id}
-                  onClick={() => router.push(`/?selected=${item.id}`)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
-                >
-                  <td className="px-4 py-3">
-                    <span className="font-mono text-xs font-semibold text-slate-800">{item.sku}</span>
-                  </td>
-                  <td className="px-4 py-3 max-w-0">
-                    <p className="text-sm text-slate-700 truncate">{item.itemName}</p>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span className="text-xs text-slate-600">{item.atRiskDC}</span>
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    {item.daysUntilStockout < 9999 ? (
-                      <span
-                        className={`text-sm font-medium ${
-                          item.daysUntilStockout <= 7 ? "text-red-600" : "text-amber-600"
-                        }`}
-                      >
-                        {Math.round(item.daysUntilStockout)}d
-                      </span>
-                    ) : (
-                      <span className="text-slate-400">—</span>
-                    )}
-                  </td>
-                  <td className="px-4 py-3 text-right tabular-nums">
-                    <span className="text-sm font-semibold text-red-600">
-                      {fmtDollars(item.potentialPenalty)}
-                    </span>
-                  </td>
-                  <td className="px-4 py-3">
-                    <span
-                      className={`text-xs font-semibold px-2 py-1 rounded ${recBadgeClass(item.recommendation)}`}
-                    >
-                      {item.recommendation}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
         )}
       </div>
     </div>

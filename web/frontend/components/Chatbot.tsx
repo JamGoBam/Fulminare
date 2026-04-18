@@ -2,15 +2,9 @@
 
 import React, { useCallback, useEffect, useRef, useState } from "react"
 import { usePathname, useParams } from "next/navigation"
-import { MessageSquare, Send } from "lucide-react"
+import { MessageSquare, Send, X, ChevronDown, ChevronUp } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet"
 import { API_BASE } from "@/lib/api"
 
 type Role = "user" | "assistant"
@@ -36,30 +30,40 @@ function getSuggestions(pathname: string): string[] {
 let _id = 0
 const nextId = () => ++_id
 
+function clamp(val: number, min: number, max: number) {
+  return Math.min(max, Math.max(min, val))
+}
+
+const PANEL_W = 384  // w-96
+const PANEL_H = 512  // h-[32rem]
+const EDGE    = 24   // bottom-6 / right-6
+
 export function Chatbot() {
   const pathname = usePathname()
   const params = useParams()
   const sku = typeof params?.sku === "string" ? params.sku : null
 
-  const [open, setOpen] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [input, setInput] = useState("")
+  const [open, setOpen]           = useState(false)
+  const [minimized, setMinimized] = useState(false)
+  const [pos, setPos]             = useState({ x: 0, y: 0 })
+  const [messages, setMessages]   = useState<ChatMessage[]>([])
+  const [input, setInput]         = useState("")
   const [streaming, setStreaming] = useState(false)
-  const bottomRef = useRef<HTMLDivElement>(null)
-  const abortRef = useRef<AbortController | null>(null)
+  const bottomRef   = useRef<HTMLDivElement>(null)
+  const abortRef    = useRef<AbortController | null>(null)
+  const dragStart   = useRef<{ px: number; py: number; ox: number; oy: number } | null>(null)
 
   const scrollToBottom = useCallback(() => {
     setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), 50)
   }, [])
 
-  // Stable ref so the event listener never captures a stale sendMessage closure
   const sendMessageRef = useRef<(text: string) => Promise<void>>(async () => {})
 
-  // Open chatbot with a pre-filled message dispatched from other components
   useEffect(() => {
     const handler = (e: Event) => {
       const { message } = (e as CustomEvent<{ message: string }>).detail
       setOpen(true)
+      setMinimized(false)
       sendMessageRef.current(message)
     }
     window.addEventListener("chat:prefill", handler)
@@ -71,22 +75,15 @@ export function Chatbot() {
       if (!text.trim() || streaming) return
       setInput("")
 
-      const userMsg: ChatMessage = { id: nextId(), role: "user", content: text }
+      const userMsg: ChatMessage      = { id: nextId(), role: "user",      content: text }
       const assistantMsg: ChatMessage = { id: nextId(), role: "assistant", content: "", toolCalls: [] }
 
       setMessages((prev) => [...prev, userMsg, assistantMsg])
       setStreaming(true)
       scrollToBottom()
 
-      const history = [...messages, userMsg].map((m) => ({
-        role: m.role,
-        content: m.content,
-      }))
-
-      const body = JSON.stringify({
-        messages: history,
-        page_context: { path: pathname, sku },
-      })
+      const history = [...messages, userMsg].map((m) => ({ role: m.role, content: m.content }))
+      const body    = JSON.stringify({ messages: history, page_context: { path: pathname, sku } })
 
       abortRef.current = new AbortController()
 
@@ -98,11 +95,9 @@ export function Chatbot() {
           signal: abortRef.current.signal,
         })
 
-        if (!res.ok || !res.body) {
-          throw new Error(`HTTP ${res.status}`)
-        }
+        if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`)
 
-        const reader = res.body.getReader()
+        const reader  = res.body.getReader()
         const decoder = new TextDecoder()
         let buf = ""
 
@@ -116,22 +111,14 @@ export function Chatbot() {
           for (const part of parts) {
             if (!part.startsWith("data: ")) continue
             let event: Record<string, unknown>
-            try {
-              event = JSON.parse(part.slice(6))
-            } catch {
-              continue
-            }
+            try { event = JSON.parse(part.slice(6)) } catch { continue }
 
             if (event.type === "token") {
               setMessages((prev) => {
                 const updated = [...prev]
                 const last = updated[updated.length - 1]
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    content: last.content + (event.content as string),
-                  }
-                }
+                if (last?.role === "assistant")
+                  updated[updated.length - 1] = { ...last, content: last.content + (event.content as string) }
                 return updated
               })
               scrollToBottom()
@@ -139,33 +126,24 @@ export function Chatbot() {
               setMessages((prev) => {
                 const updated = [...prev]
                 const last = updated[updated.length - 1]
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    toolCalls: [...(last.toolCalls ?? []), event.name as string],
-                  }
-                }
+                if (last?.role === "assistant")
+                  updated[updated.length - 1] = { ...last, toolCalls: [...(last.toolCalls ?? []), event.name as string] }
                 return updated
               })
             } else if (event.type === "warning") {
               setMessages((prev) => {
                 const updated = [...prev]
                 const last = updated[updated.length - 1]
-                if (last?.role === "assistant") {
+                if (last?.role === "assistant")
                   updated[updated.length - 1] = { ...last, unverified: true }
-                }
                 return updated
               })
             } else if (event.type === "error") {
               setMessages((prev) => {
                 const updated = [...prev]
                 const last = updated[updated.length - 1]
-                if (last?.role === "assistant") {
-                  updated[updated.length - 1] = {
-                    ...last,
-                    content: `Error: ${event.message}`,
-                  }
-                }
+                if (last?.role === "assistant")
+                  updated[updated.length - 1] = { ...last, content: `Error: ${event.message}` }
                 return updated
               })
             }
@@ -176,9 +154,8 @@ export function Chatbot() {
         setMessages((prev) => {
           const updated = [...prev]
           const last = updated[updated.length - 1]
-          if (last?.role === "assistant" && last.content === "") {
+          if (last?.role === "assistant" && last.content === "")
             updated[updated.length - 1] = { ...last, content: "Connection error. Please retry." }
-          }
           return updated
         })
       } finally {
@@ -189,7 +166,6 @@ export function Chatbot() {
     [messages, pathname, sku, streaming, scrollToBottom]
   )
 
-  // Keep ref in sync so the prefill event handler always calls the latest version
   sendMessageRef.current = sendMessage
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -197,91 +173,157 @@ export function Chatbot() {
     sendMessage(input)
   }
 
+  // Drag handlers — use pointer capture so drag stays smooth
+  function handlePointerDown(e: React.PointerEvent<HTMLDivElement>) {
+    e.currentTarget.setPointerCapture(e.pointerId)
+    dragStart.current = { px: e.clientX, py: e.clientY, ox: pos.x, oy: pos.y }
+  }
+
+  function handlePointerMove(e: React.PointerEvent<HTMLDivElement>) {
+    if (!dragStart.current) return
+    const rawX = e.clientX - dragStart.current.px + dragStart.current.ox
+    const rawY = e.clientY - dragStart.current.py + dragStart.current.oy
+    // Panel anchored bottom-right; translate moves it from that base.
+    // Keep left edge ≥ 0 and right edge ≤ viewport width.
+    const minX = -(window.innerWidth  - PANEL_W - EDGE)
+    const minY = -(window.innerHeight - PANEL_H - EDGE)
+    setPos({ x: clamp(rawX, minX, EDGE), y: clamp(rawY, minY, EDGE) })
+  }
+
+  function handlePointerUp(e: React.PointerEvent<HTMLDivElement>) {
+    e.currentTarget.releasePointerCapture(e.pointerId)
+    dragStart.current = null
+  }
+
+  function openPanel() {
+    setOpen(true)
+    setMinimized(false)
+  }
+
+  function closePanel() {
+    setOpen(false)
+    setMinimized(false)
+    setPos({ x: 0, y: 0 })
+  }
+
   const suggestions = getSuggestions(pathname)
 
   return (
     <>
-      {/* FAB */}
-      <button
-        onClick={() => setOpen(true)}
-        aria-label="Open assistant"
-        className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
-      >
-        <MessageSquare className="h-6 w-6" />
-      </button>
+      {/* FAB — hidden while panel is open */}
+      {!open && (
+        <button
+          onClick={openPanel}
+          aria-label="Open assistant"
+          className="fixed bottom-6 right-6 z-40 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+        >
+          <MessageSquare className="h-6 w-6" />
+        </button>
+      )}
 
-      {/* Sheet */}
-      <Sheet open={open} onOpenChange={setOpen}>
-        <SheetContent side="right" showCloseButton className="flex flex-col w-full sm:max-w-md p-0">
-          <SheetHeader className="border-b px-4 py-3">
-            <SheetTitle className="text-sm font-semibold">POP Inventory Assistant</SheetTitle>
-          </SheetHeader>
+      {/* Draggable panel */}
+      {open && (
+        <div
+          style={{ transform: `translate(${pos.x}px, ${pos.y}px)` }}
+          className={`fixed bottom-6 right-6 w-96 bg-white rounded-xl border border-slate-200 shadow-xl z-40 flex flex-col ${
+            minimized ? "h-auto" : "h-[32rem]"
+          }`}
+        >
+          {/* Header / drag handle */}
+          <div
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            className="flex items-center justify-between px-4 py-3 border-b border-slate-100 rounded-t-xl cursor-grab active:cursor-grabbing select-none shrink-0"
+          >
+            <span className="text-sm font-semibold text-slate-800">POP Inventory Assistant</span>
+            <div className="flex items-center gap-1">
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={() => setMinimized((v) => !v)}
+                aria-label={minimized ? "Expand" : "Minimize"}
+                className="p-1 rounded hover:bg-slate-100 transition-colors text-slate-500"
+              >
+                {minimized ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+              <button
+                onPointerDown={(e) => e.stopPropagation()}
+                onClick={closePanel}
+                aria-label="Close assistant"
+                className="p-1 rounded hover:bg-slate-100 transition-colors text-slate-500"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          </div>
 
-          {/* Messages */}
-          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
-            {messages.length === 0 && (
-              <div className="space-y-2">
-                <p className="text-xs text-muted-foreground">Ask about inventory, chargebacks, or transfers.</p>
-                {suggestions.map((s) => (
-                  <button
-                    key={s}
-                    onClick={() => sendMessage(s)}
-                    className="block w-full text-left text-xs px-3 py-2 rounded-md border border-border hover:bg-muted transition-colors"
-                  >
-                    {s}
-                  </button>
-                ))}
-              </div>
-            )}
-
-            {messages.map((msg) => (
-              <div key={msg.id} className={`flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}>
-                {/* Tool call pills */}
-                {msg.toolCalls && msg.toolCalls.length > 0 && (
-                  <div className="flex flex-wrap gap-1">
-                    {msg.toolCalls.map((t, i) => (
-                      <span key={i} className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-mono">
-                        {t}
-                      </span>
+          {/* Body — hidden when minimized */}
+          {!minimized && (
+            <>
+              {/* Messages */}
+              <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+                {messages.length === 0 && (
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">Ask about inventory, chargebacks, or transfers.</p>
+                    {suggestions.map((s) => (
+                      <button
+                        key={s}
+                        onClick={() => sendMessage(s)}
+                        className="block w-full text-left text-xs px-3 py-2 rounded-md border border-border hover:bg-muted transition-colors"
+                      >
+                        {s}
+                      </button>
                     ))}
                   </div>
                 )}
-                <div
-                  className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
-                    msg.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "bg-muted text-foreground"
-                  }`}
-                >
-                  {msg.content || (streaming && msg.role === "assistant" ? (
-                    <span className="animate-pulse">▋</span>
-                  ) : null)}
-                </div>
-                {msg.unverified && (
-                  <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
-                    ⚠ unverified — figures may not reflect live data
-                  </p>
-                )}
-              </div>
-            ))}
-            <div ref={bottomRef} />
-          </div>
 
-          {/* Input */}
-          <form onSubmit={handleSubmit} className="border-t px-4 py-3 flex gap-2">
-            <Input
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about inventory or chargebacks…"
-              disabled={streaming}
-              className="flex-1 text-sm"
-            />
-            <Button type="submit" size="icon" disabled={streaming || !input.trim()}>
-              <Send className="h-4 w-4" />
-            </Button>
-          </form>
-        </SheetContent>
-      </Sheet>
+                {messages.map((msg) => (
+                  <div key={msg.id} className={`flex flex-col gap-1 ${msg.role === "user" ? "items-end" : "items-start"}`}>
+                    {msg.toolCalls && msg.toolCalls.length > 0 && (
+                      <div className="flex flex-wrap gap-1">
+                        {msg.toolCalls.map((t, i) => (
+                          <span key={i} className="text-xs bg-muted text-muted-foreground px-2 py-0.5 rounded-full font-mono">
+                            {t}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <div
+                      className={`max-w-[85%] rounded-xl px-3 py-2 text-sm whitespace-pre-wrap ${
+                        msg.role === "user" ? "bg-primary text-primary-foreground" : "bg-muted text-foreground"
+                      }`}
+                    >
+                      {msg.content || (streaming && msg.role === "assistant" ? (
+                        <span className="animate-pulse">▋</span>
+                      ) : null)}
+                    </div>
+                    {msg.unverified && (
+                      <p className="text-xs text-amber-600 flex items-center gap-1 mt-0.5">
+                        ⚠ unverified — figures may not reflect live data
+                      </p>
+                    )}
+                  </div>
+                ))}
+                <div ref={bottomRef} />
+              </div>
+
+              {/* Input */}
+              <form onSubmit={handleSubmit} className="border-t border-slate-100 px-4 py-3 flex gap-2 shrink-0">
+                <Input
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  placeholder="Ask about inventory or chargebacks…"
+                  disabled={streaming}
+                  className="flex-1 text-sm"
+                />
+                <Button type="submit" size="icon" disabled={streaming || !input.trim()}>
+                  <Send className="h-4 w-4" />
+                </Button>
+              </form>
+            </>
+          )}
+        </div>
+      )}
     </>
   )
 }
