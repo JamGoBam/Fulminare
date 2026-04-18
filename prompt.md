@@ -20,31 +20,27 @@ Three linked workstreams for the real-user POP Inventory tool:
 - Completed **F9** — aria-current nav, keyboard nav rows, icon+color chips, 25-term glossary, OnboardingTour banner.
 - Completed **P11** — Ollama/OpenAI-compat swap; config.py; offline error path; 59 tests pass.
 - Completed **P12** — grounding validator, warning SSE, unverified footnote in Chatbot.
-- Completed **P13** — `app/ask/page.tsx`: full-screen chat (header, scrollable messages, bottom input bar, max-w-2xl centered); suggestion chips on empty state; same SSE handling as Chatbot (token/tool_start/warning/error); `?q=` auto-send on mount via `useRef` guard (fires once only). `Sidebar.tsx`: "Ask" nav entry with `MessageSquare` icon between Reports and Settings. Verified: `/ask` loads with empty state, `/ask?q=hello` auto-sends user bubble + streams response, sidebar active-highlights correctly, FAB chatbot unchanged, zero console errors.
+- Completed **P13** — `/ask` full-screen chatbot page with deep-link `?q=` support, Ask nav entry.
+- Completed **P16** — End-to-end verification with backend running. All 5 scenarios pass: (1) Dashboard Action Queue loads live data (SKU-004 URGENT, $5K exposure); (2) clicking a row opens RecommendationPanel with $48K penalty risk, 40% confidence, reasoning bullets; (3) Analytics shows real heatmap + top causes bar chart + top-risk SKUs table; (4) Inventory Critical+DC_EAST filter shows 1 row with icon+color chip; (5) `/ask?q=Why+is+SKU-004+flagged` auto-sends and streams response. 59 pytest passing, zero browser console errors.
 
 ---
 
 ## NEXT TASK
 
-**P16 — End-to-end verification** — Run the 5 success-criteria tasks from PLAN.md, fix any gaps found.
+**DONE** — All planned phases (F1–F9, P11–P13, P16) are complete and verified.
 
-### What to verify (from PLAN.md §5 success criteria)
+The project is shippable. To start the full stack:
+```bash
+uvicorn web.api.main:app --reload --port 8000   # backend
+pnpm --dir web/frontend dev                      # frontend → http://localhost:3000
+ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
+```
 
-1. **"Is anything going to stock out this week?"** — Dashboard Action Queue loads with real data (backend running), ranks by DoS, shows URGENT badges.
-2. **"Should I transfer X or wait?"** — Clicking an Action Queue row opens RecommendationPanel with transfer-vs-wait comparison and dollar tradeoff.
-3. **"Which chargebacks are hurting me most?"** — Analytics page loads ChargebackHeatmap + top causes + top-risk SKUs table.
-4. **"Show me everything critical in DC_EAST"** — Inventory page: filter rail + DC dropdown, Critical status filter, rows update.
-5. **"Explain this recommendation to my boss"** — `/ask?q=Why+is+SKU+J-72402+flagged` deep-link auto-sends and streams an answer.
-
-### What to fix if broken
-- If any page has a broken API fetch (404/500), check the endpoint exists in `web/api/main.py` and the route file.
-- If `pytest -q` fails, fix the broken test before moving on.
-- If a TypeScript error appears in the browser console, fix it.
-
-### Acceptance criteria
-1. All 5 scenario tasks work end-to-end with backend running.
-2. `pytest -q` passes (59+ tests).
-3. Zero browser console errors on Dashboard, Inventory, Analytics, Ask pages.
+If additional work is needed, candidates from PLAN.md:
+- **P8** — Transfers dedicated page (`/transfers`) with per-decision cards
+- **P9** — SKU detail page redesign (`/sku/[sku]`) with 3-DC cards + PO timeline
+- **P10** — Chargebacks drill-down with filters + top-10 offender list
+- Richer seed data (P1/P2) — 25 SKUs with varied patterns for more compelling demo
 
 ---
 
