@@ -15,19 +15,9 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- Completed **F7** — `app/reports/page.tsx`: 3 quick-action cards + Available Reports table (5 rows). `app/settings/page.tsx`: Preferences toggles, DC Labels read-only, Integrations with status badges. Zero errors.
-- Completed **F8** — `TopBar.tsx`: debounced 200ms search → `?q=`, × clear. `FilterBar.tsx`: pills wired to `?status=`, DC dropdown to `?dc=`. `ActionQueue.tsx`: client-side filtering + EmptyState.
-- Completed **F9** — aria-current nav, keyboard nav rows, icon+color chips, 25-term glossary, OnboardingTour banner.
-- Completed **P11** — Ollama/OpenAI-compat swap; config.py; offline error path; 59 tests pass.
-- Completed **P12** — grounding validator, warning SSE, unverified footnote in Chatbot.
-- Completed **P13** — `/ask` full-screen chatbot page with deep-link `?q=` support, Ask nav entry.
-- Completed **P16** — End-to-end verification with backend running. All 5 scenarios pass: (1) Dashboard Action Queue loads live data (SKU-004 URGENT, $5K exposure); (2) clicking a row opens RecommendationPanel with $48K penalty risk, 40% confidence, reasoning bullets; (3) Analytics shows real heatmap + top causes bar chart + top-risk SKUs table; (4) Inventory Critical+DC_EAST filter shows 1 row with icon+color chip; (5) `/ask?q=Why+is+SKU-004+flagged` auto-sends and streams response. 59 pytest passing, zero browser console errors.
-
----
-
-## NEXT TASK
-
-**DONE** — All planned phases (F1–F9, P11–P13, P16) are complete and verified.
+- **U1 complete** — Removed TopBar search; wired FilterBar search to `?q=`; moved URGENT inline; wired 4 cosmetic dropdowns to URL params; ActionQueue consumes risk/rec/sort. Zero errors.
+- **U2 complete** — Bell popover live: `useState` dropdown in `TopBar.tsx`, reuses `["action-items"]` TanStack Query cache, lists top-3 URGENT rows (name · SKU · DC · days · penalty), clicking a row navigates to `/?selected=`, red dot hides when count=0.
+- **U3 complete** — #5: `recommended` prop on both comparison cards; Transfer card blue when Transfer Now is recommended, slate when not (and vice versa for Inbound card). #6: `ActionStatusProvider` + `useActionStatus` context with sessionStorage persistence; 4 action buttons update shared state; confirmation banner in panel; status chip + opacity + sink-to-bottom in ActionQueue. #7: "Explain in chat ↗" button under reasoning bullets calls `openChatbot()` with prefilled message. Zero console errors verified on fresh server start.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -44,21 +34,64 @@ If additional work is needed, candidates from PLAN.md:
 
 ---
 
-## FILES IN PLAY
+---
 
-- Any file with a broken integration gap found during P16 verification
+## NEXT TASK
+
+**U3 — Rec panel polish: conditional blue, action-button state, Explain button**
+
+Three sub-tasks, all in `web/frontend/components/`:
+
+**#5 — Conditional card color (`ActionComparisonCard.tsx`)**
+- `TransferComparisonCard` always shows `bg-blue-600` badge + `bg-blue-50/30` border even when the recommendation is Wait. Fix: add `recommended: boolean` prop. When `recommended=true`: keep current `border-blue-200 bg-blue-50/30` + `bg-blue-600` badge + `bg-blue-500` confidence bar. When `recommended=false`: use `border-slate-200 bg-slate-50/30` + `bg-slate-600` badge + `bg-slate-400` confidence bar.
+- In `RecommendationPanel.tsx`, pass `recommended={item.recommendation === "Transfer Now"}` to `TransferComparisonCard` and `recommended={item.recommendation === "Wait"}` to `InboundComparisonCard`. `InboundComparisonCard` needs the same `recommended` prop wired to its border/badge colors.
+
+**#6 — Action-button client state (`RecommendationPanel.tsx`)**
+- Replace the 4 `console.log` buttons with real client state. Use a `Map<string, "approved"|"waiting"|"escalated"|"assigned">` stored in React context or `sessionStorage` (key: `"pop:actions"`). On button click: (a) save the status, (b) show a `<div>` confirmation banner inside the panel ("Marked for WMS review ✓"), (c) add a status chip on the matching Action Queue row (pass via context or use a `CustomEvent` dispatched to a listener in ActionQueue). The row moves to the bottom of the queue when it has a status. No backend call.
+- For the context approach: create `web/frontend/lib/action-status-context.tsx` exporting `ActionStatusProvider` and `useActionStatus()` hook. Wrap the layout in it. ActionQueue reads the map to sort resolved items to bottom and show a small chip.
+
+**#7 — "Explain in chat" button (`RecommendationPanel.tsx`)**
+- Under the "Why This Recommendation" bullet list, add a small ghost button: `<button onClick={...}>Explain in chat ↗</button>`. On click: call `openChatbot()` (imported from `ActionQueue.tsx`) with message: `` `Explain why ${item.sku} at ${item.atRiskDC} should ${item.recommendation}. Walk me through the reasoning bullets.` ``
+
+Commit: `[FRONTEND] polish: U3 — conditional card color, action-button state, Explain in chat`
+Then update prompt.md NEXT TASK → U4 and run `scripts/handoff.sh`.
+
+---
+
+## NEXT TASK
+
+**U4 — Draggable chatbot panel (replace Sheet)**
+
+Replace the `<Sheet>` in `web/frontend/components/Chatbot.tsx` with a draggable, non-modal fixed-position panel. Keep all SSE streaming logic intact.
+
+Acceptance criteria:
+1. **No overlay / no blur** — remove `<Sheet>`, `<SheetContent>`, `<SheetHeader>`, `<SheetTitle>` entirely. No backdrop, no darkening of the dashboard.
+2. **Fixed panel** — `fixed bottom-6 right-6 w-96 h-[32rem] bg-white rounded-xl border border-slate-200 shadow-xl z-40 flex flex-col`. Hidden when `open=false` (use `display:none` or conditional render).
+3. **Drag handle** — the panel header (title bar) is draggable. Use `onPointerDown`/`onPointerMove`/`onPointerUp` on the header div. Translate the panel with `transform: translate(dx, dy)` state. Clamp so panel stays fully inside the viewport: `dx` in `[-(window.innerWidth - panelWidth - right), 0]`, `dy` in `[-(window.innerHeight - panelHeight - bottom), 0]` (adjust for starting position bottom-right). Reset drag offset to `{x:0, y:0}` when panel closes.
+4. **Minimize button** — a `ChevronDown` icon button in the header that sets `minimized=true`, collapsing panel to just the title bar (height `~48px`). Clicking the FAB or `ChevronUp` un-minimizes.
+5. **Close button** — `X` icon button in the header that closes (sets `open=false`). FAB still reopens.
+6. **FAB unchanged** — `fixed bottom-6 right-6 z-40` blue circle. When panel is open, FAB should be hidden (or overlap is fine since panel is bottom-right — just hide FAB when open to avoid visual clutter).
+7. **Keep all existing logic** — SSE streaming, `chat:prefill` event listener, suggestion chips, `unverified` footnote, tool-call pills.
+
+Files: `web/frontend/components/Chatbot.tsx` only. Remove the shadcn Sheet imports; keep Button and Input imports.
+
+Commit: `[FRONTEND] polish: U4 — draggable non-modal chatbot panel, no overlay`
+Then update prompt.md NEXT TASK → U5 and run `scripts/handoff.sh`.
+
+## FILES IN PLAY (U4)
+
+- `web/frontend/components/Chatbot.tsx` — replace Sheet with draggable fixed panel
 
 ## LOCKED / DO NOT TOUCH
 
 - `PLAN.md` — approved spec; structural changes require user signoff
 - `scripts/handoff.sh` — handoff mechanism
 - `web/api/chat_validator.py`, `web/api/routes/chat.py` — P12 deliverables
-- `web/frontend/components/Chatbot.tsx` — P12 deliverable; do not modify
-- All other frontend components (F1–F9 deliverables)
+- `web/frontend/components/Chatbot.tsx` — will change in U4; skip for now
 
 ## BLOCKERS
 
-- None. All parquet files exist in `data/processed/` (seed ingest + pipeline ran this session). Backend requires `pip install openai fastapi uvicorn pandas pyarrow duckdb pydantic` — `anthropic` dep in `chat.py` still needs P11 migration before backend fully starts.
+- None. Backend on :8000, frontend on :3000, 59 pytest passing.
 
 ## QUICK-RESUME PROMPT
 

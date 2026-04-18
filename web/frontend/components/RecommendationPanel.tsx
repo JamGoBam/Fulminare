@@ -2,12 +2,14 @@
 
 import { useSearchParams } from "next/navigation"
 import { useQuery } from "@tanstack/react-query"
-import { AlertTriangle, CheckCircle2, TrendingUp } from "lucide-react"
+import { AlertTriangle, CheckCircle2, TrendingUp, MessageSquare } from "lucide-react"
 import { getActionItems } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
 import { TransferComparisonCard, InboundComparisonCard } from "@/components/ActionComparisonCard"
 import { PoTimeline } from "@/components/PoTimeline"
 import type { TimelineEvent } from "@/components/PoTimeline"
+import { useActionStatus } from "@/lib/action-status-context"
+import { openChatbot } from "@/components/ActionQueue"
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
@@ -77,9 +79,17 @@ function buildTimeline(item: ActionItem): TimelineEvent[] {
   return events
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  approved:  "✓ Approved",
+  waiting:   "⏳ Monitoring",
+  escalated: "↑ Escalated",
+  assigned:  "→ Assigned",
+}
+
 export function RecommendationPanel() {
   const params = useSearchParams()
   const selectedId = params.get("selected")
+  const { statuses, setStatus } = useActionStatus()
 
   const { data } = useQuery<ActionItem[]>({
     queryKey: ["action-items"],
@@ -102,6 +112,9 @@ export function RecommendationPanel() {
   }
 
   const timeline = buildTimeline(item)
+  const currentStatus = statuses[item.id]
+  const transferRecommended = item.recommendation === "Transfer Now"
+  const waitRecommended = item.recommendation === "Wait"
 
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
@@ -130,8 +143,14 @@ export function RecommendationPanel() {
 
         {/* Comparison cards */}
         <div className="space-y-3">
-          <TransferComparisonCard details={item.transferDetails} />
-          <InboundComparisonCard details={item.inboundDetails} />
+          <TransferComparisonCard
+            details={item.transferDetails}
+            recommended={transferRecommended}
+          />
+          <InboundComparisonCard
+            details={item.inboundDetails}
+            recommended={waitRecommended}
+          />
         </div>
 
         {/* Why this recommendation */}
@@ -146,6 +165,18 @@ export function RecommendationPanel() {
                 </li>
               ))}
             </ul>
+            {/* #7 — Explain in chat */}
+            <button
+              onClick={() =>
+                openChatbot(
+                  `Explain why ${item.sku} at ${item.atRiskDC} should ${item.recommendation}. Walk me through the reasoning bullets.`
+                )
+              }
+              className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"
+            >
+              <MessageSquare className="w-3.5 h-3.5" />
+              Explain in chat ↗
+            </button>
           </div>
         )}
 
@@ -157,32 +188,58 @@ export function RecommendationPanel() {
           </div>
         )}
 
-        {/* Action buttons */}
-        <div className="pt-2 border-t border-slate-100 grid grid-cols-2 gap-2">
-          <button
-            onClick={() => console.log("Marked for WMS review:", item.id)}
-            className="text-xs font-semibold bg-blue-600 hover:bg-blue-700 text-white px-3 py-2 rounded-lg transition-colors"
-          >
-            Approve Transfer
-          </button>
-          <button
-            onClick={() => console.log("Marked for WMS review:", item.id)}
-            className="text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition-colors"
-          >
-            Wait &amp; Monitor
-          </button>
-          <button
-            onClick={() => console.log("Marked for WMS review:", item.id)}
-            className="text-xs font-semibold bg-purple-100 hover:bg-purple-200 text-purple-700 px-3 py-2 rounded-lg transition-colors"
-          >
-            Escalate
-          </button>
-          <button
-            onClick={() => console.log("Marked for WMS review:", item.id)}
-            className="text-xs font-semibold bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-2 rounded-lg transition-colors"
-          >
-            Assign Owner
-          </button>
+        {/* #6 — Action buttons with client state */}
+        <div className="pt-2 border-t border-slate-100 space-y-2">
+          {currentStatus && (
+            <div className="flex items-center gap-2 px-3 py-2 bg-green-50 border border-green-200 rounded-lg">
+              <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+              <p className="text-xs text-green-700 font-medium">
+                {STATUS_LABEL[currentStatus]} — marked for WMS review.
+              </p>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setStatus(item.id, "approved")}
+              className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                currentStatus === "approved"
+                  ? "bg-green-600 text-white"
+                  : "bg-blue-600 hover:bg-blue-700 text-white"
+              }`}
+            >
+              {currentStatus === "approved" ? "✓ Approved" : "Approve Transfer"}
+            </button>
+            <button
+              onClick={() => setStatus(item.id, "waiting")}
+              className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                currentStatus === "waiting"
+                  ? "bg-slate-700 text-white"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              {currentStatus === "waiting" ? "✓ Monitoring" : "Wait & Monitor"}
+            </button>
+            <button
+              onClick={() => setStatus(item.id, "escalated")}
+              className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                currentStatus === "escalated"
+                  ? "bg-purple-700 text-white"
+                  : "bg-purple-100 hover:bg-purple-200 text-purple-700"
+              }`}
+            >
+              {currentStatus === "escalated" ? "✓ Escalated" : "Escalate"}
+            </button>
+            <button
+              onClick={() => setStatus(item.id, "assigned")}
+              className={`text-xs font-semibold px-3 py-2 rounded-lg transition-colors ${
+                currentStatus === "assigned"
+                  ? "bg-blue-700 text-white"
+                  : "bg-slate-100 hover:bg-slate-200 text-slate-700"
+              }`}
+            >
+              {currentStatus === "assigned" ? "✓ Assigned" : "Assign Owner"}
+            </button>
+          </div>
         </div>
       </div>
     </div>

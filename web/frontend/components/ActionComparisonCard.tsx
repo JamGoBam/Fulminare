@@ -39,16 +39,28 @@ function Row({ icon, label, value, valueClass = "text-slate-800" }: {
   )
 }
 
-export function TransferComparisonCard({ details }: { details: TransferDetails }) {
+export function TransferComparisonCard({
+  details,
+  recommended,
+}: {
+  details: TransferDetails
+  recommended: boolean
+}) {
   const isUnavailable =
     details.sourceDC === "None available" ||
     details.unitsAvailable === 0 ||
     details.leadTime === "N/A"
 
+  const container = recommended
+    ? "border border-blue-200 rounded-lg p-4 bg-blue-50/30"
+    : "border border-slate-200 rounded-lg p-4 bg-slate-50/30"
+  const badge = recommended ? "bg-blue-600 text-white" : "bg-slate-600 text-white"
+  const bar = recommended ? "bg-blue-500" : "bg-slate-400"
+
   return (
-    <div className="border border-blue-200 rounded-lg p-4 bg-blue-50/30">
+    <div className={container}>
       <div className="flex items-center gap-2 mb-3">
-        <span className="text-xs font-semibold bg-blue-600 text-white px-2 py-0.5 rounded">
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${badge}`}>
           Option A — Transfer Now
         </span>
         {isUnavailable && (
@@ -69,12 +81,18 @@ export function TransferComparisonCard({ details }: { details: TransferDetails }
         </div>
       )}
 
-      <ConfidenceBar value={isUnavailable ? 0 : details.confidence} color="bg-blue-500" />
+      <ConfidenceBar value={isUnavailable ? 0 : details.confidence} color={bar} />
     </div>
   )
 }
 
-export function InboundComparisonCard({ details }: { details: InboundDetails }) {
+export function InboundComparisonCard({
+  details,
+  recommended,
+}: {
+  details: InboundDetails
+  recommended: boolean
+}) {
   const delayClass =
     details.delayRisk === "High"
       ? "text-red-600"
@@ -82,10 +100,16 @@ export function InboundComparisonCard({ details }: { details: InboundDetails }) 
       ? "text-amber-600"
       : "text-green-600"
 
+  const container = recommended
+    ? "border border-blue-200 rounded-lg p-4 bg-blue-50/30"
+    : "border border-slate-200 rounded-lg p-4 bg-slate-50/30"
+  const badge = recommended ? "bg-blue-600 text-white" : "bg-slate-600 text-white"
+  const bar = recommended ? "bg-blue-500" : "bg-slate-400"
+
   return (
-    <div className="border border-slate-200 rounded-lg p-4 bg-slate-50/30">
+    <div className={container}>
       <div className="mb-3">
-        <span className="text-xs font-semibold bg-slate-600 text-white px-2 py-0.5 rounded">
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${badge}`}>
           Option B — Wait for Inbound
         </span>
       </div>
@@ -120,7 +144,7 @@ export function InboundComparisonCard({ details }: { details: InboundDetails }) 
         />
       </div>
 
-      <ConfidenceBar value={details.confidence} color="bg-slate-500" />
+      <ConfidenceBar value={details.confidence} color={bar} />
     </div>
   )
 }
