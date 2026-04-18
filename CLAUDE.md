@@ -1,6 +1,6 @@
 # CLAUDE.md — Prince of Peace Inventory & Fulfillment (HTC 2026)
 
-**Read this file once per session. Then read `prompt.md`. Then start working.** This file is stable; `prompt.md` is the living handoff.
+**Read this file once per session. Then read `PLAN.md` (approved execution blueprint). Then read `prompt.md`. Then start working.** This file is stable; `PLAN.md` is the approved spec; `prompt.md` is the living handoff.
 
 ## Context budget & handoff protocol (READ FIRST)
 
@@ -29,7 +29,7 @@ Prince of Peace (POP) distributes ~800 active SKUs across 3 U.S. distribution ce
 - **Python 3.11 + pandas** — fastest CSV-to-insight path; team knows it. *Technology*.
 - **DuckDB** — SQL over parquet/CSV with zero server; pandas interop; fast aggregations for chargeback heatmaps. *Technology*.
 - **FastAPI + uvicorn + pydantic v2** — async, auto OpenAPI, zero boilerplate. *Technology*.
-- **Anthropic Python SDK (`anthropic>=0.40`)** — powers the in-app assistant (`/api/chat`) via tool-use over existing analytics. `ANTHROPIC_API_KEY` required at runtime (see Commands). *Inspiration, Design*.
+- **Ollama + OpenAI SDK (`openai>=1.40`)** — local inference for the in-app assistant (`/api/chat`) via tool-use over existing analytics. Default model `qwen2.5:7b-instruct`, configurable via `OLLAMA_MODEL`. No external API key; no cloud. *Inspiration, Design*.
 - **Next.js 16.2.4 App Router + TypeScript + Tailwind + shadcn/ui** — shadcn aesthetic ships the Design score out of the box. **Next.js 16 has breaking changes vs. training data** — read `web/frontend/node_modules/next/dist/docs/` before writing frontend code (see `web/frontend/AGENTS.md`). *Design, Presentation*.
 - **Recharts** — line/bar/heatmap with shadcn theming. *Design*.
 - **TanStack Query** — server state only; no Zustand. *Technology*.
@@ -80,8 +80,10 @@ python -m data.ingest
 # analytics pipeline (writes derived tables to /data/processed)
 python -m analytics.pipeline
 
-# chatbot requires an Anthropic API key in env (never commit .env*)
-export ANTHROPIC_API_KEY=sk-ant-...
+# chatbot runs locally via Ollama — no API key, no cloud, free
+curl -fsSL https://ollama.com/install.sh | sh          # one-time
+ollama serve &                                         # daemon on :11434
+ollama pull qwen2.5:7b-instruct                        # one-time (fallback: qwen2.5:3b-instruct)
 
 # backend (:8000)
 uvicorn web.api.main:app --reload --port 8000
@@ -125,7 +127,7 @@ Anything not mapping to at least one criterion: **cut it.**
 - Trunk-based on `main`. Commit after every green block. No long-lived branches.
 - `.gitignore`: `/data/raw/**`, `.venv/`, `node_modules/`, `.next/`, `/data/processed/*.parquet`, `/data/processed/pop.duckdb`, `.env`, `.env.local`, `web/frontend/.env*.local`.
 - **Committed**: `/data/seed/*.csv` (20 rows each, synthetic) so CI and cold starts work.
-- `ANTHROPIC_API_KEY` lives in environment only — never committed. No other secrets needed.
+- No secrets / API keys required. Chatbot is fully local (Ollama). `OLLAMA_URL` / `OLLAMA_MODEL` / `OLLAMA_TIMEOUT` may be set via env for non-default setups; all have sensible defaults.
 
 ## Do not re-derive (locked assumptions)
 
@@ -142,8 +144,10 @@ Anything not mapping to at least one criterion: **cut it.**
 11. **`delay_flag` shift** = `expected_arrival + 7 days` when truthy. Used by the transfer-vs-wait engine to decide whether an inbound PO will actually arrive before stockout. Do not model a per-SKU delay distribution.
 12. **Dominant customer/channel for penalty modeling** = last 90 days of sales for that (sku, dest_dc). The chargeback `penalty_rate` function falls back (customer+channel+dc) → channel+dc → dc → global when <3 samples. Do not re-model.
 13. **Chatbot is read-only in v1.** Tools only read parquet/duckdb; no mutation. If an action is needed, the LLM surfaces it in text — the UI does not let it execute.
-14. **Model for `/api/chat`** = `claude-sonnet-4-6` (fast streaming for live demo). Cache the system prompt with `cache_control: {"type": "ephemeral"}`.
+14. **Model for `/api/chat`** = local Ollama server (default `qwen2.5:7b-instruct`), configurable via `OLLAMA_MODEL` env var. No external API key required; prompt caching is handled internally by Ollama — do not add `cache_control` dicts.
+
+> **Pivot note (see PLAN.md):** The project has moved from the HTC 2026 demo to real-user supply managers. Locks 1–13 above are now **advisory**, not binding — PLAN.md supersedes. Check PLAN.md before re-deriving anything that feels dated. Lock 14 is updated above to reflect the Ollama swap.
 
 ## Open roadmap
 
-See `shared/roadmap.md` for the full Phase 0 → 5 plan (Transfer-vs-Wait engine, API expansion, AI chatbot, accessibility layer). `prompt.md` always carries the current NEXT TASK — start there.
+See **`PLAN.md`** (repo root) for the approved 17-phase execution blueprint (P0 → P16): data cleanup, frontend IA rewrite, and in-house Ollama chatbot. `shared/roadmap.md` is the archived hackathon roadmap kept for historical context. `prompt.md` always carries the current NEXT TASK — start there.

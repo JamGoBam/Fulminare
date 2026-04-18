@@ -1,37 +1,42 @@
 # prompt.md — Session Handoff (updated every session)
 
 ## CURRENT SPRINT GOAL
-Ship **Transfer-vs-Wait decision engine + AI chatbot for non-technical ops managers**. Keep the J-72402 demo narrative intact. Full roadmap in `shared/roadmap.md` (Phase 0 → 5).
+Pivot from HTC 2026 demo to a real-user POP Inventory tool for entry-level supply managers. Three linked workstreams:
+1. **Data cleanup** — validator, richer seed, enriched derived table (single source of truth)
+2. **Frontend IA rewrite** — `Today` / `Inventory` / `Transfers` / `Chargebacks` / `Ask`, plain-language labels, next-action CTAs
+3. **In-house chatbot** — swap Anthropic for **Ollama** (local, free, no API key); `qwen2.5:7b-instruct` by default
+
+Full execution blueprint is in **`PLAN.md`** at the repo root (17 phases, P0→P16, each sized to one Claude Code task). Treat PLAN.md as the approved spec.
 
 ## LAST SESSION SUMMARY
-- Completed Phase 5 (Handoff docs): reviewed CLAUDE.md — no locked assumptions changed in Phase 4; confirmed 14 items intact.
-- Sprint goal fully shipped: Phases 0–5 complete. Transfer-vs-Wait engine, AI chatbot, accessibility layer, and handoff docs all committed and pushed.
-- Only remaining work: end-to-end chatbot smoke test with live `ANTHROPIC_API_KEY` (blocked on key in env).
+- Produced `PLAN.md` — approved executable plan covering data cleanup, frontend reorganization, and in-house Ollama chatbot rebuild.
+- User confirmed: real-user pivot (demo locks relaxed), lowest-friction local inference (Ollama + Qwen2.5-7B), full IA rewrite.
+- `CLAUDE.md` and `prompt.md` updated: assumption #14 now points to Ollama, no `ANTHROPIC_API_KEY` anywhere, PLAN.md added to session-start read list.
 
 ## NEXT TASK
-**E2E chatbot verification** — smoke-test the chatbot with a live `ANTHROPIC_API_KEY`.
+**P0 — Data validator** (first phase per PLAN.md §5).
 
 Acceptance criteria:
-1. Boot backend with `ANTHROPIC_API_KEY` set: `uvicorn web.api.main:app --reload --port 8000`.
-2. Boot frontend: `pnpm --dir web/frontend dev`.
-3. Open browser, open chat FAB, ask *"Why is J-72402 flagged critical?"* — expect `get_sku_status` tool call + reply citing ≤14-day DoS + $ exposure.
-4. On `/sku/J-72402`: ask *"Should we transfer or wait?"* — expect TRANSFER rec with freight cost.
-5. On `/chargebacks`: ask *"What's the top chargeback cause?"* — expect `get_chargeback_breakdown(by="cause")` + $.
-6. Confirm no browser console errors, no 500s in backend log.
+1. New file `data/validate.py` implements the referential-integrity checks listed in PLAN.md §2.2.
+2. Wire as the last step of `data/ingest.py` so the pipeline aborts on validation failure.
+3. Writes `data/processed/validation_report.json` with pass/fail per check + total error count.
+4. Running `python -m data.ingest` on current seed CSVs succeeds with 0 errors; deliberately break one seed CSV once to confirm it aborts loudly.
+5. No new `test_*.py` file — rely on pipeline-abort behavior as the test (per PLAN.md §6 Verification).
 
 ## FILES IN PLAY
-- None — all code is complete. This is a runtime verification task only.
+- `data/validate.py` (new)
+- `data/ingest.py` (add validator call at end)
+- `PLAN.md` — reference, do not edit without user signoff
 
 ## LOCKED / DO NOT TOUCH
-- Hero SKU **J-72402** and its demo numbers
-- `demo/scenario.md` narrative
-- All Phase 0–5 backend + frontend work
-- All entries in `CLAUDE.md` § "Do not re-derive" (14 items)
+- `PLAN.md` — approved spec; any structural changes require user confirmation
+- `scripts/handoff.sh` — handoff mechanism
+- Demo-era assumptions in CLAUDE.md § "Do not re-derive" are **advisory now**; PLAN.md supersedes. Still leave J-72402 in the regenerated seed (P1) so existing docs/tests keep working.
 
 ## BLOCKERS
-- End-to-end chatbot test requires `ANTHROPIC_API_KEY` in environment (never committed).
+- None. (Ollama setup is only needed for P11+; P0 is pure Python/pandas work.)
 
 ## QUICK-RESUME PROMPT (paste as first message)
 ```
-Read CLAUDE.md and prompt.md. Run the E2E chatbot verification: boot backend + frontend, smoke-test the chatbot with ANTHROPIC_API_KEY set. Follow the Context budget & handoff protocol from CLAUDE.md.
+Read CLAUDE.md, then PLAN.md, then prompt.md. Execute NEXT TASK (P0 — Data validator) per PLAN.md §2.2. Follow the Context budget & handoff protocol from CLAUDE.md.
 ```
