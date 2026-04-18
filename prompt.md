@@ -22,6 +22,7 @@ Three linked workstreams for the real-user POP Inventory tool:
 - **U5 complete** — Analytics page inline rec panel: `?selected=` URL state, `RecommendationPanel` embedded in 2-column layout alongside heatmap + top-risk SKUs; clicking a row in the top-risk table sets `?selected=`.
 - **U6 complete** — InventoryMatrix: 3 saved-view presets (My morning triage / East DC watchlist / Overstock candidates) in left filter rail, active state highlighted blue when filters match. Every table row is clickable — routes to `/?selected=<id>` when action item exists, else `/sku/<sku>`. Action-cell stopPropagation preserved.
 - **U7 complete** — Chargebacks page: filter bar (channel + DC selects, URL state, clear link); heatmap upgraded with `channel`/`dc` props for client-side filtering + plain-language cause labels (SHORT_SHIP → "Short shipment" etc.) + DC column headers localised; top-10 customers table added below heatmap (`getTopCustomers` fetcher in `lib/api.ts`). Zero console errors.
+- **U8 complete** — SKU detail page full redesign: 3-DC status cards (Critical/Watch/Healthy/Overstock chip, days of cover, available units, demand rate); PO timeline using `<PoTimeline>` (today + 3-day transfer ETA + open PO arrivals with delay flag); transfer recommendation card (route, qty, freight cost, net saving, reason, "Review in Dashboard" link); chargeback history summary card (total exposure + incident count). `getSkuDetail` + full TypeScript types added to `lib/api.ts`. Zero console errors.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -34,32 +35,30 @@ ollama serve && ollama pull qwen2.5:7b-instruct  # chatbot (optional)
 
 ## NEXT TASK
 
-**U8 — SKU detail page redesign (`/sku/[sku]`)**
+**U9 — End-to-end smoke test + any remaining gaps**
 
-Per PLAN.md P9: 3-DC status cards, PO timeline, inline transfer recommendation card, recent chargebacks list for the SKU.
+U1–U8 are all complete. Run a manual walkthrough of all 5 success-criteria tasks from PLAN.md section 6 (with backend running) and note any gaps. If none are found, declare the polish sprint done and update prompt.md accordingly.
 
-Files: `web/frontend/app/sku/[sku]/page.tsx` (redesign), `web/frontend/components/PoTimeline.tsx` (already exists — reuse).
+The 5 tasks:
+1. Land on `/` — read action queue row #1, understand $ risk and options in <30s.
+2. Search "SKU-001" in top bar — land on SKU detail, read recommendation.
+3. Navigate to `/inventory` — filter Status=Critical, DC=DC East — verify filtered list.
+4. Navigate to `/chargebacks` — filter, read top-customers list.
+5. Open chatbot FAB — ask "What should I do first today?" — verify response arrives.
 
-Acceptance criteria:
-1. **3-DC cards** — one card per DC showing status chip (Critical/Watch/Healthy/Overstock), days of cover, on-hand units, and at-risk $. Source from `GET /api/inventory/sku/{sku}` or derive from existing data.
-2. **PO Timeline** — reuse `<PoTimeline>` component showing today + transfer ETA + inbound PO arrival. Already implemented; just wire the right data.
-3. **Inline transfer rec card** — same `<RecommendationPanel>`-style card if an action item exists for this SKU; otherwise show "No transfer decision pending."
-4. **Recent chargebacks** — bottom section, last 90 days for this SKU, 3–5 rows max. Source from chargebacks data filtered by SKU.
-5. **Back link** → Dashboard (`/`).
+If gaps are found, fix them inline (small) or document as a new U10 task.
 
-Commit: `[FRONTEND] polish: U8 — SKU detail page with 3-DC cards, PO timeline, inline rec`
-Then update prompt.md and run `scripts/handoff.sh`.
+Commit: `[META] prompt: mark U8 complete, define U9 smoke-test task`
+Then run `scripts/handoff.sh`.
 
-## FILES IN PLAY (U8)
+## FILES IN PLAY (U9)
 
-- `web/frontend/app/sku/[sku]/page.tsx` — full redesign
-- `web/frontend/components/PoTimeline.tsx` — reuse as-is
+- No code changes expected — this is a verification pass.
 
 ## LOCKED / DO NOT TOUCH
 
-- `PLAN.md` — approved spec; structural changes require user signoff
+- `PLAN.md` — approved spec
 - `scripts/handoff.sh` — handoff mechanism
-- `web/api/` — no backend changes needed; use existing `/api/inventory/sku/{sku}` and `/api/action-items`
 
 ## BLOCKERS
 
@@ -69,9 +68,9 @@ Then update prompt.md and run `scripts/handoff.sh`.
 
 ```
 Read CLAUDE.md then prompt.md (FIGMA spec is embedded there now — skip FIGMA_PROMPT.md).
-Note: U1–U7 are complete. Execute NEXT TASK (U8 — SKU detail page redesign) per the spec in prompt.md.
+Note: U1–U8 are complete. Execute NEXT TASK (U9 — smoke test + gap fix) per the spec in prompt.md.
 Follow the Context budget & handoff protocol from CLAUDE.md.
-When U8 is done, update prompt.md and run scripts/handoff.sh.
+When U9 is done, update prompt.md and run scripts/handoff.sh.
 ```
 
 ---

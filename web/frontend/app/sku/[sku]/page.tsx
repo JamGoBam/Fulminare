@@ -1,163 +1,305 @@
 "use client"
 
-import { useQuery } from "@tanstack/react-query"
-import axios from "axios"
 import { use } from "react"
 import Link from "next/link"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { useQuery } from "@tanstack/react-query"
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
-import { API_BASE } from "@/lib/api"
+  AlertTriangle, CheckCircle, TrendingUp, Clock,
+  ArrowRight, DollarSign, Package, MapPin,
+} from "lucide-react"
+import { getSkuDetail, getActionItems } from "@/lib/api"
+import type { SkuDcDetail, SkuRecommendation } from "@/lib/api"
+import { PoTimeline } from "@/components/PoTimeline"
+import type { TimelineEvent } from "@/components/PoTimeline"
 
-const DCS = ["DC_EAST", "DC_WEST", "DC_CENTRAL"] as const
+// ── helpers ────────────────────────────────────────────────────────────────────
 
-interface ImbalanceRow {
-  sku: string
-  product_name: string
-  dc: string
-  demand_rate: number
-  dos: number | null
-  imbalance_score: number
-  status: "critical" | "warning" | "ok"
+const DC_LABELS: Record<string, string> = {
+  DC_EAST: "DC East", DC_WEST: "DC West", DC_CENTRAL: "DC Central",
 }
 
-interface TransferRow {
-  sku: string
-  product_name: string
-  origin_dc: string
-  dest_dc: string
-  qty_to_transfer: number
-  transfer_cost: number
-  chargeback_risk_avoided: number
-  net_saving: number
+function dcLabel(dc: string) { return DC_LABELS[dc] ?? dc }
+
+function fmt(n: number) {
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
+  if (n >= 1_000)     return `$${Math.round(n / 1_000)}K`
+  return `$${Math.round(n)}`
 }
 
-function StatusBadge({ status }: { status: ImbalanceRow["status"] }) {
-  if (status === "critical") return <Badge variant="destructive">Critical</Badge>
-  if (status === "warning") return <Badge variant="secondary">Warning</Badge>
-  return <Badge variant="outline">OK</Badge>
+function mapStatus(dc: SkuDcDetail): "Critical" | "Watch" | "Healthy" | "Overstock" {
+  if (dc.status === "critical") return "Critical"
+  if (dc.status === "warning")  return "Watch"
+  if (dc.dos !== null && dc.dos > 180) return "Overstock"
+  return "Healthy"
 }
 
-function DosStat({ dc, row }: { dc: string; row: ImbalanceRow | undefined }) {
-  const dos = row?.dos
-  const status = row?.status ?? "ok"
+const STATUS_META = {
+  Critical: { chip: "bg-red-100 text-red-700 border border-red-200",     Icon: AlertTriangle, val: "text-red-600"   },
+  Watch:    { chip: "bg-amber-100 text-amber-700 border border-amber-200", Icon: Clock,        val: "text-amber-600" },
+  Healthy:  { chip: "bg-green-100 text-green-700 border border-green-200", Icon: CheckCircle,  val: "text-slate-700" },
+  Overstock:{ chip: "bg-blue-100 text-blue-700 border border-blue-200",    Icon: TrendingUp,   val: "text-blue-600"  },
+} as const
+
+const REC_META: Record<string, { label: string; cls: string }> = {
+  TRANSFER: { label: "Transfer Now", cls: "bg-blue-600 text-white" },
+  WAIT:     { label: "Wait",         cls: "bg-slate-600 text-white" },
+  ESCALATE: { label: "Escalate",     cls: "bg-purple-600 text-white" },
+}
+
+// ── sub-components ─────────────────────────────────────────────────────────────
+
+function DcCard({ dc }: { dc: SkuDcDetail }) {
+  const status = mapStatus(dc)
+  const { chip, Icon, val } = STATUS_META[status]
   return (
-    <Card>
-      <CardHeader className="pb-1">
-        <CardTitle className="text-xs font-mono text-muted-foreground">{dc}</CardTitle>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        <p className="text-3xl font-semibold tabular-nums">
-          {dos !== null && dos !== undefined ? dos.toFixed(1) : "—"}
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex flex-col gap-3">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-semibold text-slate-900">{dcLabel(dc.dc)}</span>
+        <span className={`inline-flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded ${chip}`}>
+          <Icon className="w-3 h-3 shrink-0" />
+          {status}
+        </span>
+      </div>
+      <div>
+        <p className={`text-3xl font-semibold tabular-nums ${val}`}>
+          {dc.dos !== null ? `${dc.dos.toFixed(1)}d` : "—"}
         </p>
-        <p className="text-xs text-muted-foreground">days of supply</p>
-        <StatusBadge status={status} />
-      </CardContent>
-    </Card>
+        <p className="text-xs text-slate-500 mt-0.5">days of cover</p>
+      </div>
+      <div className="grid grid-cols-2 gap-2 text-xs">
+        <div>
+          <p className="text-slate-500">Available</p>
+          <p className="font-semibold text-slate-800">{Math.round(dc.available).toLocaleString()} units</p>
+        </div>
+        <div>
+          <p className="text-slate-500">Demand</p>
+          <p className="font-semibold text-slate-800">{dc.demand_rate.toFixed(1)}/day</p>
+        </div>
+      </div>
+    </div>
   )
 }
 
-function fmt(n: number) {
-  return `$${Math.round(n).toLocaleString("en-US")}`
+function RecCard({ rec, actionId }: { rec: SkuRecommendation; actionId?: string }) {
+  const meta = REC_META[rec.action] ?? REC_META["WAIT"]
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="px-4 py-3 border-b border-slate-100 flex items-center justify-between">
+        <h3 className="text-sm font-semibold text-slate-900">Transfer vs Wait</h3>
+        <span className={`text-xs font-semibold px-2 py-0.5 rounded ${meta.cls}`}>{meta.label}</span>
+      </div>
+      <div className="p-4 space-y-3">
+        {rec.action === "TRANSFER" && rec.origin_dc && (
+          <div className="flex items-center gap-2 text-sm">
+            <MapPin className="w-4 h-4 text-slate-400 shrink-0" />
+            <span className="font-medium text-slate-800">{dcLabel(rec.origin_dc)}</span>
+            <ArrowRight className="w-4 h-4 text-slate-400" />
+            <span className="font-medium text-slate-800">{dcLabel(rec.dest_dc)}</span>
+            {rec.qty && (
+              <span className="text-slate-500">· {rec.qty.toLocaleString()} units</span>
+            )}
+          </div>
+        )}
+        <div className="grid grid-cols-3 gap-3">
+          {rec.transfer_cost !== null && (
+            <div className="bg-slate-50 rounded-lg p-2.5">
+              <p className="text-xs text-slate-500 mb-0.5">Freight cost</p>
+              <p className="text-sm font-semibold text-slate-800">{fmt(rec.transfer_cost)}</p>
+            </div>
+          )}
+          {rec.days_to_stockout !== null && (
+            <div className="bg-red-50 rounded-lg p-2.5">
+              <p className="text-xs text-slate-500 mb-0.5">Days to stockout</p>
+              <p className="text-sm font-semibold text-red-600">{Math.round(rec.days_to_stockout)}d</p>
+            </div>
+          )}
+          {rec.net_saving !== null && (
+            <div className="bg-green-50 rounded-lg p-2.5">
+              <p className="text-xs text-slate-500 mb-0.5">Net saving</p>
+              <p className="text-sm font-semibold text-green-600">{fmt(rec.net_saving)}</p>
+            </div>
+          )}
+        </div>
+        <p className="text-sm text-slate-600 leading-relaxed">{rec.reason}</p>
+        {actionId && (
+          <Link
+            href={`/?selected=${actionId}`}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-blue-600 hover:text-blue-800"
+          >
+            Review in Dashboard <ArrowRight className="w-3.5 h-3.5" />
+          </Link>
+        )}
+      </div>
+    </div>
+  )
 }
+
+function DcCardSkeleton() {
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 space-y-3">
+      <div className="flex justify-between">
+        <div className="h-4 w-16 rounded bg-slate-100 animate-pulse" />
+        <div className="h-5 w-20 rounded bg-slate-100 animate-pulse" />
+      </div>
+      <div className="h-8 w-20 rounded bg-slate-100 animate-pulse" />
+      <div className="grid grid-cols-2 gap-2">
+        <div className="h-8 rounded bg-slate-100 animate-pulse" />
+        <div className="h-8 rounded bg-slate-100 animate-pulse" />
+      </div>
+    </div>
+  )
+}
+
+// ── page ────────────────────────────────────────────────────────────────────────
 
 export default function SkuPage({ params }: { params: Promise<{ sku: string }> }) {
   const { sku } = use(params)
 
-  const { data: allRows, isLoading: loadingImbalance } = useQuery<ImbalanceRow[]>({
-    queryKey: ["imbalance"],
-    queryFn: () =>
-      axios.get<ImbalanceRow[]>(`${API_BASE}/api/inventory/imbalance?top=100`).then((r) => r.data),
+  const { data, isLoading, isError } = useQuery({
+    queryKey: ["sku-detail", sku],
+    queryFn: () => getSkuDetail(sku),
   })
 
-  const { data: allTransfers, isLoading: loadingTransfers } = useQuery<TransferRow[]>({
-    queryKey: ["transfers"],
-    queryFn: () =>
-      axios.get<TransferRow[]>(`${API_BASE}/api/recommendations/transfers`).then((r) => r.data),
+  const { data: actionItems } = useQuery({
+    queryKey: ["action-items"],
+    queryFn: getActionItems,
   })
 
-  const skuRows = allRows?.filter((r) => r.sku === sku) ?? []
-  const skuTransfers = allTransfers?.filter((r) => r.sku === sku) ?? []
-  const productName = skuRows[0]?.product_name ?? sku
+  // Find matching action item for "Review in Dashboard" link
+  const actionId = actionItems?.find(
+    (a) => a.sku === sku
+  )?.id
 
-  const dcMap = Object.fromEntries(skuRows.map((r) => [r.dc, r]))
+  // Build PO timeline
+  const timeline: TimelineEvent[] = [
+    {
+      label: "Today",
+      date: new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+      type: "today",
+    },
+  ]
 
-  const isLoading = loadingImbalance || loadingTransfers
+  if (data) {
+    // Transfer ETA — 3 days from today (locked constant per CLAUDE.md)
+    if (data.recommendation?.action === "TRANSFER") {
+      const eta = new Date()
+      eta.setDate(eta.getDate() + 3)
+      timeline.push({
+        label: "Transfer ETA",
+        date: eta.toLocaleDateString("en-US", { month: "short", day: "numeric" }),
+        type: "future",
+      })
+    }
+    // Open PO arrivals
+    for (const po of data.open_pos) {
+      timeline.push({
+        label: `PO ${po.po_id}`,
+        date: po.expected_arrival,
+        type: po.delay_flag ? "delayed" : "future",
+      })
+    }
+  }
+
+  const productName = data?.product_name ?? sku
 
   return (
-    <div className="flex flex-col flex-1 px-4 py-8 max-w-7xl mx-auto w-full gap-6">
-      <header className="flex flex-col gap-1">
-        <Link href="/" className="text-sm text-muted-foreground hover:text-foreground">
+    <div className="flex flex-col flex-1 px-8 py-8 max-w-7xl mx-auto w-full gap-6">
+      {/* Header */}
+      <header>
+        <Link href="/" className="text-sm text-slate-500 hover:text-slate-800 flex items-center gap-1 mb-2 w-fit">
           ← Dashboard
         </Link>
-        <h1 className="text-2xl font-semibold tracking-tight">{productName}</h1>
-        <p className="text-sm text-muted-foreground font-mono">{sku}</p>
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0">
+            <Package className="w-4 h-4 text-blue-500" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-semibold text-slate-900 leading-tight">{productName}</h1>
+            <p className="text-sm font-mono text-slate-500 mt-0.5">{sku}</p>
+          </div>
+        </div>
       </header>
 
-      {isLoading ? (
-        <div className="grid grid-cols-3 gap-4">
-          {DCS.map((dc) => (
-            <Card key={dc}>
-              <CardContent className="pt-4">
-                <div className="h-10 w-20 rounded bg-zinc-200 animate-pulse" />
-              </CardContent>
-            </Card>
-          ))}
-        </div>
-      ) : (
-        <div className="grid grid-cols-3 gap-4">
-          {DCS.map((dc) => (
-            <DosStat key={dc} dc={dc} row={dcMap[dc]} />
-          ))}
-        </div>
+      {/* 3-DC cards */}
+      <section>
+        <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+          Inventory by DC
+        </h2>
+        {isLoading ? (
+          <div className="grid grid-cols-3 gap-4">
+            {[1, 2, 3].map((i) => <DcCardSkeleton key={i} />)}
+          </div>
+        ) : isError ? (
+          <p className="text-sm text-slate-500">
+            We can&apos;t reach the data service right now. Try again in a moment.
+          </p>
+        ) : data && data.dcs.length > 0 ? (
+          <div className="grid grid-cols-3 gap-4">
+            {data.dcs.map((dc) => <DcCard key={dc.dc} dc={dc} />)}
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">No inventory data found for this SKU.</p>
+        )}
+      </section>
+
+      {/* PO Timeline */}
+      {!isLoading && data && timeline.length > 1 && (
+        <section>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+            Timeline
+          </h2>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-2">
+            <PoTimeline arrivals={timeline} />
+          </div>
+        </section>
       )}
 
-      <Card>
-        <CardHeader className="border-b">
-          <CardTitle>Transfer Recommendations</CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          {skuTransfers.length === 0 ? (
-            <p className="px-4 py-6 text-sm text-muted-foreground">
-              No transfers recommended for this SKU.
-            </p>
+      {/* Transfer recommendation */}
+      {!isLoading && data && (
+        <section>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+            Recommendation
+          </h2>
+          {data.recommendation ? (
+            <RecCard rec={data.recommendation} actionId={actionId} />
           ) : (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Route</TableHead>
-                  <TableHead className="text-right">Qty</TableHead>
-                  <TableHead className="text-right">Freight Cost</TableHead>
-                  <TableHead className="text-right">Risk Avoided</TableHead>
-                  <TableHead className="text-right">Net Saving</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {skuTransfers.map((r, i) => (
-                  <TableRow key={i}>
-                    <TableCell className="font-mono text-xs whitespace-nowrap">
-                      {r.origin_dc} → {r.dest_dc}
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{r.qty_to_transfer}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(r.transfer_cost)}</TableCell>
-                    <TableCell className="text-right tabular-nums">{fmt(r.chargeback_risk_avoided)}</TableCell>
-                    <TableCell className="text-right tabular-nums font-semibold text-green-600 dark:text-green-400">
-                      {fmt(r.net_saving)}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+            <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-6 flex items-center gap-3">
+              <CheckCircle className="w-5 h-5 text-green-500 shrink-0" />
+              <p className="text-sm text-slate-600">No transfer decision pending for this SKU.</p>
+            </div>
           )}
-        </CardContent>
-      </Card>
+        </section>
+      )}
+
+      {/* Chargeback summary */}
+      {!isLoading && data && (
+        <section>
+          <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wide mb-3">
+            Chargeback History (all time)
+          </h2>
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 flex items-center gap-6">
+            <div className="flex items-center gap-2">
+              <DollarSign className="w-5 h-5 text-red-400 shrink-0" />
+              <div>
+                <p className="text-xs text-slate-500">Total exposure</p>
+                <p className="text-lg font-semibold text-red-600">
+                  {fmt(data.chargeback_history_summary.total_amount)}
+                </p>
+              </div>
+            </div>
+            <div className="w-px h-10 bg-slate-100" />
+            <div>
+              <p className="text-xs text-slate-500">Incidents</p>
+              <p className="text-lg font-semibold text-slate-800">
+                {data.chargeback_history_summary.count}
+              </p>
+            </div>
+            <p className="text-xs text-slate-400 ml-auto">
+              Excludes promotional (TPR) chargebacks
+            </p>
+          </div>
+        </section>
+      )}
     </div>
   )
 }
