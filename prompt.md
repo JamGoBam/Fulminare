@@ -15,22 +15,8 @@ Three linked workstreams for the real-user POP Inventory tool:
 
 ## LAST SESSION SUMMARY
 
-- **U1 complete** — Removed TopBar search (Bell + date only remain). Wired FilterBar search to `?q=` with 200ms debounce. Moved URGENT badge inline (next to RecBadge, penalty `$` no longer obscured). Replaced 4 cosmetic dropdowns with param-backed selects (`?risk=`, `?rec=`, `?channel=`, `?sort=`); ActionQueue consumes risk/rec/sort in its filter pipeline. Zero console errors. Preview verified.
-
----
-
-## NEXT TASK
-
-**U2 — Notification bell popover**
-
-Acceptance criteria:
-- `TopBar.tsx` Bell button (`TopBar.tsx:17-20`): on click, open a shadcn `<Popover>` (or a manual `useState`-driven dropdown — no new libs). The popover lists the top 3 URGENT items fetched from `/api/action-items` (already used by ActionQueue via TanStack Query — reuse the same query key `["action-items"]` so no extra network call). Each row shows: urgency icon + item name + SKU + days to stockout + potential penalty. Clicking a row pushes `/?selected={id}` (same as ActionQueue's `select()` function). If no URGENT items, show "No urgent items — all clear ✓". Style: `w-80` popover, `shadow-lg`, same card tokens as the rest of the shell.
-- The red dot badge on the Bell should reflect the live URGENT count (0 → hide the dot, ≥1 → show it).
-
-Files: `web/frontend/components/TopBar.tsx` only (import `useQuery` + `getActionItems` from existing lib).
-
-Commit: `[FRONTEND] polish: U2 — notification bell popover with top-3 URGENT items`
-Then update prompt.md NEXT TASK → U3 and run `scripts/handoff.sh`.
+- **U1 complete** — Removed TopBar search; wired FilterBar search to `?q=`; moved URGENT inline; wired 4 cosmetic dropdowns to URL params; ActionQueue consumes risk/rec/sort. Zero errors.
+- **U2 complete** — Bell popover live: `useState` dropdown in `TopBar.tsx`, reuses `["action-items"]` TanStack Query cache, lists top-3 URGENT rows (name · SKU · DC · days · penalty), clicking a row navigates to `/?selected=`, red dot hides when count=0. Verified end-to-end via preview_*.
 
 The project is shippable. To start the full stack:
 ```bash
@@ -47,9 +33,35 @@ If additional work is needed, candidates from PLAN.md:
 
 ---
 
-## FILES IN PLAY (U2)
+---
 
-- `web/frontend/components/TopBar.tsx` — add bell popover with live URGENT items
+## NEXT TASK
+
+**U3 — Rec panel polish: conditional blue, action-button state, Explain button**
+
+Three sub-tasks, all in `web/frontend/components/`:
+
+**#5 — Conditional card color (`ActionComparisonCard.tsx`)**
+- `TransferComparisonCard` always shows `bg-blue-600` badge + `bg-blue-50/30` border even when the recommendation is Wait. Fix: add `recommended: boolean` prop. When `recommended=true`: keep current `border-blue-200 bg-blue-50/30` + `bg-blue-600` badge + `bg-blue-500` confidence bar. When `recommended=false`: use `border-slate-200 bg-slate-50/30` + `bg-slate-600` badge + `bg-slate-400` confidence bar.
+- In `RecommendationPanel.tsx`, pass `recommended={item.recommendation === "Transfer Now"}` to `TransferComparisonCard` and `recommended={item.recommendation === "Wait"}` to `InboundComparisonCard`. `InboundComparisonCard` needs the same `recommended` prop wired to its border/badge colors.
+
+**#6 — Action-button client state (`RecommendationPanel.tsx`)**
+- Replace the 4 `console.log` buttons with real client state. Use a `Map<string, "approved"|"waiting"|"escalated"|"assigned">` stored in React context or `sessionStorage` (key: `"pop:actions"`). On button click: (a) save the status, (b) show a `<div>` confirmation banner inside the panel ("Marked for WMS review ✓"), (c) add a status chip on the matching Action Queue row (pass via context or use a `CustomEvent` dispatched to a listener in ActionQueue). The row moves to the bottom of the queue when it has a status. No backend call.
+- For the context approach: create `web/frontend/lib/action-status-context.tsx` exporting `ActionStatusProvider` and `useActionStatus()` hook. Wrap the layout in it. ActionQueue reads the map to sort resolved items to bottom and show a small chip.
+
+**#7 — "Explain in chat" button (`RecommendationPanel.tsx`)**
+- Under the "Why This Recommendation" bullet list, add a small ghost button: `<button onClick={...}>Explain in chat ↗</button>`. On click: call `openChatbot()` (imported from `ActionQueue.tsx`) with message: `` `Explain why ${item.sku} at ${item.atRiskDC} should ${item.recommendation}. Walk me through the reasoning bullets.` ``
+
+Commit: `[FRONTEND] polish: U3 — conditional card color, action-button state, Explain in chat`
+Then update prompt.md NEXT TASK → U4 and run `scripts/handoff.sh`.
+
+## FILES IN PLAY (U3)
+
+- `web/frontend/components/ActionComparisonCard.tsx` — add `recommended` prop, conditional colors
+- `web/frontend/components/RecommendationPanel.tsx` — pass `recommended`, add status state, Explain button
+- `web/frontend/lib/action-status-context.tsx` (new) — `ActionStatusProvider` + `useActionStatus`
+- `web/frontend/app/layout.tsx` (or the nearest `"use client"` wrapper) — wrap with provider
+- `web/frontend/components/ActionQueue.tsx` — read status context, sort resolved to bottom, show chip
 
 ## LOCKED / DO NOT TOUCH
 
