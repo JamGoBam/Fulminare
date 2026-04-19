@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query"
 import { AlertTriangle, CheckCircle2, TrendingUp, MessageSquare } from "lucide-react"
 import { getActionItems } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
+import { dcLabel } from "@/lib/dc-labels"
 import { TransferComparisonCard, InboundComparisonCard } from "@/components/ActionComparisonCard"
 import { PoTimeline } from "@/components/PoTimeline"
 import type { TimelineEvent } from "@/components/PoTimeline"
@@ -128,7 +129,7 @@ export function RecommendationPanel() {
             <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
               <span className="font-mono text-xs text-slate-500">{item.sku}</span>
               <span className="text-slate-300">·</span>
-              <span className="text-xs text-slate-500">{item.atRiskDC}</span>
+              <span className="text-xs text-slate-500">{dcLabel(item.atRiskDC)}</span>
             </div>
           </div>
           <RecBadge rec={item.recommendation} />
@@ -169,7 +170,7 @@ export function RecommendationPanel() {
             <button
               onClick={() =>
                 openChatbot(
-                  `Explain why ${item.sku} at ${item.atRiskDC} should ${item.recommendation}. Walk me through the reasoning bullets.`
+                  `Explain why ${item.sku} at ${dcLabel(item.atRiskDC)} should ${item.recommendation}. Walk me through the reasoning bullets.`
                 )
               }
               className="mt-2 flex items-center gap-1.5 text-xs text-blue-600 hover:text-blue-800 font-medium transition-colors"

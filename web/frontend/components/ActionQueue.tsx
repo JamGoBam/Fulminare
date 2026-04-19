@@ -6,6 +6,7 @@ import { AlertCircle, Clock, CheckCircle, DollarSign, Package } from "lucide-rea
 import { getActionItems } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
 import { useActionStatus, type ActionStatus } from "@/lib/action-status-context"
+import { dcLabel, DC_LABELS } from "@/lib/dc-labels"
 
 export function openChatbot(message: string) {
   window.dispatchEvent(new CustomEvent("chat:prefill", { detail: { message } }))
@@ -127,7 +128,7 @@ export function ActionQueue() {
 
   if (activeDc) {
     filtered = filtered.filter(
-      (item) => item.atRiskDC.toLowerCase() === activeDc
+      (item) => dcLabel(item.atRiskDC).toLowerCase() === activeDc
     )
   }
 
@@ -206,7 +207,7 @@ export function ActionQueue() {
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 flex-wrap mb-0.5">
                 <span className="font-mono text-xs font-semibold text-slate-800">{item.sku}</span>
-                <span className="text-xs text-slate-500">{item.atRiskDC}</span>
+                <span className="text-xs text-slate-500">{dcLabel(item.atRiskDC)}</span>
                 <RecBadge rec={item.recommendation} />
                 {isUrgent && (
                   <span className="bg-red-600 text-white text-xs font-semibold px-2 py-0.5 rounded">

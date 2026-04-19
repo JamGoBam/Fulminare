@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query"
 import { Bell, AlertCircle, Clock, CheckCircle, DollarSign } from "lucide-react"
 import { getActionItems } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
+import { dcLabel } from "@/lib/dc-labels"
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
@@ -101,7 +102,7 @@ export function TopBar() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium text-slate-800 truncate">{item.itemName}</p>
                           <p className="text-xs text-slate-500 mt-0.5">
-                            {item.sku} · {item.atRiskDC} · {Math.round(item.daysUntilStockout)}d to stockout
+                            {item.sku} · {dcLabel(item.atRiskDC)} · {Math.round(item.daysUntilStockout)}d to stockout
                           </p>
                         </div>
                         <div className="flex items-center gap-1 shrink-0 mt-0.5">

@@ -14,6 +14,7 @@ import { Badge } from "@/components/ui/badge"
 import Link from "next/link"
 import { MetricTooltip } from "@/components/MetricTooltip"
 import { API_BASE } from "@/lib/api"
+import { dcLabel } from "@/lib/dc-labels"
 
 const API_URL = `${API_BASE}/api/inventory/imbalance?top=20`
 
@@ -109,7 +110,7 @@ export function ImbalanceTable() {
               </Link>
             </TableCell>
             <TableCell className="max-w-48 truncate">{row.product_name}</TableCell>
-            <TableCell className="font-mono text-xs">{row.dc}</TableCell>
+            <TableCell className="font-mono text-xs">{dcLabel(row.dc)}</TableCell>
             <TableCell className="text-right tabular-nums">
               {row.demand_rate.toFixed(2)}
             </TableCell>
