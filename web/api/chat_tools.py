@@ -217,7 +217,7 @@ TOOL_SCHEMAS: list[dict] = [
         {
             "type": "object",
             "properties": {
-                "dc": {"type": "string", "description": "Optional DC filter (DC_EAST, DC_WEST, DC_CENTRAL)"},
+                "dc": {"type": "string", "description": "Optional DC filter. Use internal codes: DC_WEST (DC SF / San Francisco), DC_CENTRAL (DC LA / Los Angeles), DC_EAST (DC NJ / New Jersey)."},
                 "limit": {"type": "integer", "description": "Max results (default 10)"},
             },
             "required": [],

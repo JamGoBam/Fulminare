@@ -11,14 +11,9 @@ import { getSkuDetail, getActionItems } from "@/lib/api"
 import type { SkuDcDetail, SkuRecommendation } from "@/lib/api"
 import { PoTimeline } from "@/components/PoTimeline"
 import type { TimelineEvent } from "@/components/PoTimeline"
+import { dcLabel } from "@/lib/dc-labels"
 
 // ── helpers ────────────────────────────────────────────────────────────────────
-
-const DC_LABELS: Record<string, string> = {
-  DC_EAST: "DC East", DC_WEST: "DC West", DC_CENTRAL: "DC Central",
-}
-
-function dcLabel(dc: string) { return DC_LABELS[dc] ?? dc }
 
 function fmt(n: number) {
   if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`

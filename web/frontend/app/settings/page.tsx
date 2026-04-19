@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { DC_LABELS as DC_LABEL_MAP, DC_CODES } from "@/lib/dc-labels"
 
 const INTEGRATIONS = [
   { name: "WMS (Warehouse Management)", status: "Connected",     badgeClass: "bg-green-100 text-green-700" },
@@ -8,11 +9,7 @@ const INTEGRATIONS = [
   { name: "EDI (SPS Commerce)",         status: "Pending setup", badgeClass: "bg-amber-100 text-amber-700" },
 ]
 
-const DC_LABELS = [
-  { code: "DC_EAST",    display: "DC East"    },
-  { code: "DC_WEST",    display: "DC West"    },
-  { code: "DC_CENTRAL", display: "DC Central" },
-]
+const DC_LABELS = DC_CODES.map((code) => ({ code, display: DC_LABEL_MAP[code] }))
 
 function Toggle({ defaultOn }: { defaultOn: boolean }) {
   const [on, setOn] = useState(defaultOn)

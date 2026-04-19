@@ -3,6 +3,7 @@
 import { useRef, useState } from "react"
 import { useRouter, useSearchParams, usePathname } from "next/navigation"
 import { Search, AlertTriangle, FileWarning, Truck, CheckSquare } from "lucide-react"
+import { DC_LABELS, DC_CODES } from "@/lib/dc-labels"
 
 const QUICK_FILTERS = [
   {
@@ -36,10 +37,8 @@ const QUICK_FILTERS = [
 ]
 
 const DC_OPTIONS = [
-  { label: "All DCs",    value: "" },
-  { label: "DC West",    value: "DC West" },
-  { label: "DC Central", value: "DC Central" },
-  { label: "DC East",    value: "DC East" },
+  { label: "All DCs", value: "" },
+  ...DC_CODES.map((code) => ({ label: DC_LABELS[code], value: DC_LABELS[code] })),
 ]
 
 const SELECT_CLASS =

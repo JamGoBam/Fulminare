@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/table"
 import { MetricTooltip } from "@/components/MetricTooltip"
 import { API_BASE } from "@/lib/api"
+import { DC_LABELS } from "@/lib/dc-labels"
 
 const API_URL = `${API_BASE}/api/chargebacks/summary`
 
@@ -24,12 +25,6 @@ const CAUSE_LABELS: Record<string, string> = {
   LATE_DELIVERY: "Late delivery",
   DAMAGE: "Damaged goods",
   MISSED_WINDOW: "Missed window",
-}
-
-const DC_LABELS: Record<string, string> = {
-  DC_EAST: "DC East",
-  DC_WEST: "DC West",
-  DC_CENTRAL: "DC Central",
 }
 
 interface SummaryRow {

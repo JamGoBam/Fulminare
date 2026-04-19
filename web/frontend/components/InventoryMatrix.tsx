@@ -10,6 +10,7 @@ import {
 import { getInventoryImbalance, getActionItems } from "@/lib/api"
 import type { ImbalanceRow } from "@/lib/api"
 import type { ActionItem } from "@/lib/types"
+import { DC_LABELS } from "@/lib/dc-labels"
 
 interface SkuGroup {
   sku: string
@@ -229,9 +230,9 @@ export function InventoryMatrix() {
               onChange={(e) => pushParams({ dc: e.target.value === "all" ? null : e.target.value })}
             >
               <option value="all">All DCs</option>
-              <option value="DC_EAST">DC East</option>
-              <option value="DC_WEST">DC West</option>
-              <option value="DC_CENTRAL">DC Central</option>
+              <option value="DC_WEST">{DC_LABELS.DC_WEST}</option>
+              <option value="DC_CENTRAL">{DC_LABELS.DC_CENTRAL}</option>
+              <option value="DC_EAST">{DC_LABELS.DC_EAST}</option>
             </select>
           </div>
 
@@ -292,9 +293,9 @@ export function InventoryMatrix() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">SKU</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Product</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">DC West</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">DC Central</th>
-                    <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">DC East</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">{DC_LABELS.DC_WEST}</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">{DC_LABELS.DC_CENTRAL}</th>
+                    <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">{DC_LABELS.DC_EAST}</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Imbalance</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-slate-500 uppercase tracking-wider">Inbound PO</th>
                     <th className="px-6 py-3 text-center text-xs font-medium text-slate-500 uppercase tracking-wider">Action</th>

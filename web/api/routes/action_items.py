@@ -10,15 +10,11 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
+from data.dc_labels import DC_LABELS as _DC_LABELS
+
 router = APIRouter()
 
 _PROCESSED = Path("data/processed")
-
-_DC_LABELS = {
-    "DC_EAST": "DC East",
-    "DC_WEST": "DC West",
-    "DC_CENTRAL": "DC Central",
-}
 _TRANSIT_DAYS = 3  # locked flat per CLAUDE.md
 _LARGE_DOS = 9999  # used when days_to_stockout is None/NaN (no stockout risk)
 
